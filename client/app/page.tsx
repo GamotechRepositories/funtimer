@@ -1208,13 +1208,10 @@ export default function Game() {
     <div className="relative min-h-[100dvh] overflow-x-hidden text-white [touch-action:pan-y]">
       <div className="absolute inset-0 -z-10">
         <div
-          className="absolute inset-0 scale-[1.14]"
+          className="absolute inset-0"
           style={{
             backgroundImage:
-              "url('/casinoImg.jpg'), radial-gradient(circle at 15% 25%, rgba(255,180,120,0.65), transparent 42%), radial-gradient(circle at 70% 10%, rgba(160,120,255,0.65), transparent 46%), radial-gradient(circle at 85% 70%, rgba(60,210,255,0.38), transparent 48%), radial-gradient(circle at 10% 90%, rgba(255,110,110,0.48), transparent 46%), linear-gradient(130deg, #5b2572 0%, #7a2b8f 32%, #aa3b72 62%, #6a2450 100%)",
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-            filter: "blur(28px) brightness(1.24) saturate(1.18)",
+              "radial-gradient(circle at 15% 25%, rgba(255,180,120,0.65), transparent 42%), radial-gradient(circle at 70% 10%, rgba(160,120,255,0.65), transparent 46%), radial-gradient(circle at 85% 70%, rgba(60,210,255,0.38), transparent 48%), radial-gradient(circle at 10% 90%, rgba(255,110,110,0.48), transparent 46%), linear-gradient(130deg, #5b2572 0%, #7a2b8f 32%, #aa3b72 62%, #6a2450 100%)",
           }}
         />
         <div className="absolute inset-0 bg-black/15" />
