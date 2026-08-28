@@ -20,10 +20,16 @@ const start = async () => {
   const server = http.createServer(app);
   const corsOptions = {
     origin: allowedOrigins.includes("*") ? "*" : allowedOrigins,
+    credentials: !allowedOrigins.includes("*"),
+    methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
   };
 
   const io = new Server(server, {
-    cors: corsOptions,
+    cors: {
+      origin: corsOptions.origin,
+      credentials: corsOptions.credentials,
+      methods: corsOptions.methods,
+    },
   });
 
   const rtcHub = new RTCHub(io);
@@ -48,6 +54,10 @@ const start = async () => {
 
   server.listen(port, () => {
     console.log(`Server listening on port ${port}`);
+    console.log(
+      "CORS origins:",
+      allowedOrigins.includes("*") ? "all (*)" : allowedOrigins.join(", ")
+    );
   });
 };
 
