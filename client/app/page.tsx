@@ -1,4 +1,7 @@
 /* eslint-disable react-hooks/exhaustive-deps */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @next/next/no-img-element */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -37,6 +40,80 @@ const NUMBER_TILE_CLASSES = [
   "bg-gradient-to-b from-lime-200 to-lime-700 text-slate-900", // 8
   "bg-gradient-to-b from-orange-200 to-orange-700 text-slate-900", // 9
 ];
+
+const NUMBER_BUTTON_THEMES = [
+  {
+    // 0: Charcoal
+    bg: "linear-gradient(180deg, #37373f 0%, #1a1a1f 100%)",
+    border: "1px solid rgba(255, 255, 255, 0.15)",
+    textColor: "#ffffff",
+    boxShadow: "inset 0 -6px 0px rgba(0, 0, 0, 0.4), 0 4px 6px rgba(0,0,0,0.3)",
+  },
+  {
+    // 1: Pearl/Silver
+    bg: "linear-gradient(180deg, #ffffff 0%, #cbd5e1 100%)",
+    border: "1px solid rgba(255, 255, 255, 0.8)",
+    textColor: "#0f172a",
+    boxShadow: "inset 0 -6px 0px rgba(148, 163, 184, 0.5), 0 4px 6px rgba(0,0,0,0.3)",
+  },
+  {
+    // 2: Crimson Red
+    bg: "linear-gradient(180deg, #ef4444 0%, #b91c1c 100%)",
+    border: "1px solid rgba(254, 205, 211, 0.4)",
+    textColor: "#ffffff",
+    boxShadow: "inset 0 -6px 0px rgba(153, 27, 27, 0.6), 0 4px 6px rgba(0,0,0,0.3)",
+  },
+  {
+    // 3: Golden Amber
+    bg: "linear-gradient(180deg, #f59e0b 0%, #b45309 100%)",
+    border: "1px solid rgba(253, 230, 138, 0.4)",
+    textColor: "#0f172a",
+    boxShadow: "inset 0 -6px 0px rgba(120, 53, 15, 0.5), 0 4px 6px rgba(0,0,0,0.3)",
+  },
+  {
+    // 4: Electric Blue
+    bg: "linear-gradient(180deg, #38bdf8 0%, #0284c7 100%)",
+    border: "1px solid rgba(186, 230, 253, 0.4)",
+    textColor: "#ffffff",
+    boxShadow: "inset 0 -6px 0px rgba(3, 105, 161, 0.6), 0 4px 6px rgba(0,0,0,0.3)",
+  },
+  {
+    // 5: Vivid Purple
+    bg: "linear-gradient(180deg, #c084fc 0%, #7e22ce 100%)",
+    border: "1px solid rgba(233, 213, 255, 0.4)",
+    textColor: "#ffffff",
+    boxShadow: "inset 0 -6px 0px rgba(88, 28, 135, 0.6), 0 4px 6px rgba(0,0,0,0.3)",
+  },
+  {
+    // 6: Emerald Green
+    bg: "linear-gradient(180deg, #34d399 0%, #059669 100%)",
+    border: "1px solid rgba(167, 243, 208, 0.4)",
+    textColor: "#ffffff",
+    boxShadow: "inset 0 -6px 0px rgba(4, 120, 87, 0.6), 0 4px 6px rgba(0,0,0,0.3)",
+  },
+  {
+    // 7: Bright Cyan
+    bg: "linear-gradient(180deg, #22d3ee 0%, #0891b2 100%)",
+    border: "1px solid rgba(165, 243, 252, 0.4)",
+    textColor: "#0f172a",
+    boxShadow: "inset 0 -6px 0px rgba(22, 78, 99, 0.5), 0 4px 6px rgba(0,0,0,0.3)",
+  },
+  {
+    // 8: Fresh Lime Green
+    bg: "linear-gradient(180deg, #a3e635 0%, #65a30d 100%)",
+    border: "1px solid rgba(217, 249, 157, 0.4)",
+    textColor: "#0f172a",
+    boxShadow: "inset 0 -6px 0px rgba(77, 124, 15, 0.5), 0 4px 6px rgba(0,0,0,0.3)",
+  },
+  {
+    // 9: Radiant Orange
+    bg: "linear-gradient(180deg, #fb923c 0%, #ea580c 100%)",
+    border: "1px solid rgba(254, 215, 170, 0.4)",
+    textColor: "#ffffff",
+    boxShadow: "inset 0 -6px 0px rgba(154, 52, 18, 0.6), 0 4px 6px rgba(0,0,0,0.3)",
+  },
+];
+
 const formatClock = (input: string | number | Date) =>
   new Date(input).toLocaleTimeString([], {
     hour: "2-digit",
@@ -93,6 +170,7 @@ export default function Game() {
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
   const [isSpinning, setIsSpinning] = useState(false);
   const [soundOn, setSoundOn] = useState(true);
+  const [copiedGameId, setCopiedGameId] = useState(false);
   const socketRef = useRef<Socket | null>(null);
   const peersRef = useRef<Map<string, any>>(new Map());
   const initialWheelAlignedRef = useRef(false);
@@ -1161,9 +1239,7 @@ export default function Game() {
 
   if (!token) {
     return (
-      <div className="min-h-[100dvh] relative overflow-hidden bg-[radial-gradient(circle_at_20%_10%,rgba(255,200,80,0.2),transparent_35%),radial-gradient(circle_at_80%_0%,rgba(255,80,80,0.25),transparent_40%),radial-gradient(circle_at_0%_100%,rgba(140,70,255,0.2),transparent_40%),#1c0529] flex items-center justify-center px-4 py-8 text-white">
-        <div className="absolute -top-24 right-0 h-72 w-72 rounded-full bg-amber-400/20 blur-[120px]" />
-        <div className="absolute bottom-0 left-0 h-72 w-72 rounded-full bg-fuchsia-500/20 blur-[130px]" />
+      <div className="min-h-[100dvh] relative overflow-hidden bg-gradient-to-br from-[#1C0838] to-[#120524] flex items-center justify-center px-4 py-8 text-white">
         <div className="relative z-10 w-full max-w-md rounded-[26px] border border-amber-200/30 bg-black/55 p-5 sm:p-8 shadow-[0_30px_80px_rgba(10,0,20,0.8)]">
           <p className="text-xs uppercase tracking-[0.4em] text-amber-200/70 text-center">
             Welcome
@@ -1204,546 +1280,650 @@ export default function Game() {
     );
   }
 
+  const potentialWin = totalBet > 0 ? totalBet * 9 : winAmount;
+
+  const handleCopyGameId = () => {
+    if (!currentRound?.roundId) return;
+    navigator.clipboard?.writeText(String(currentRound.roundId));
+    setCopiedGameId(true);
+    setTimeout(() => setCopiedGameId(false), 2000);
+  };
+
   return (
-    <div className="relative min-h-[100dvh] overflow-x-hidden text-white [touch-action:pan-y]">
-      <div className="absolute inset-0 -z-10">
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundImage:
-              "radial-gradient(circle at 15% 25%, rgba(255,180,120,0.65), transparent 42%), radial-gradient(circle at 70% 10%, rgba(160,120,255,0.65), transparent 46%), radial-gradient(circle at 85% 70%, rgba(60,210,255,0.38), transparent 48%), radial-gradient(circle at 10% 90%, rgba(255,110,110,0.48), transparent 46%), linear-gradient(130deg, #5b2572 0%, #7a2b8f 32%, #aa3b72 62%, #6a2450 100%)",
-          }}
-        />
-        <div className="absolute inset-0 bg-black/15" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(255,255,255,0.12),transparent_58%)]" />
-      </div>
+    <div className="relative min-h-[100dvh] overflow-x-hidden text-white [touch-action:pan-y] select-none">
+      {/* Clean Purple Background */}
+      <div className="absolute inset-0 -z-10 bg-gradient-to-br from-[#250d47] to-[#120524] pointer-events-none" />
 
-      <div className="relative z-10 mx-auto flex min-h-[100dvh] w-full max-w-7xl flex-col px-3 py-3 pb-6 sm:px-4 sm:pb-24 lg:pb-3">
-        {(() => {
-          const hudPillStyle = {
-            background:
-              "linear-gradient(180deg, rgba(255,255,255,0.16), rgba(0,0,0,0.18)), linear-gradient(180deg, rgba(120,50,180,0.55), rgba(40,10,65,0.92))",
-            border: "1px solid rgba(255, 225, 140, 0.25)",
-            boxShadow:
-              "inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -10px 18px rgba(0,0,0,0.35), 0 10px 22px rgba(0,0,0,0.35)",
-          } as const;
-          const closeStyle = {
-            background:
-              "linear-gradient(180deg, rgba(255,255,255,0.22), rgba(0,0,0,0.16)), linear-gradient(180deg, rgba(255,200,70,0.95), rgba(210,120,20,0.92))",
-            border: "1px solid rgba(60, 20, 10, 0.35)",
-            boxShadow:
-              "inset 0 1px 0 rgba(255,255,255,0.35), 0 12px 22px rgba(0,0,0,0.45)",
-          } as const;
-          const boardStyle = {
-            background:
-              "linear-gradient(180deg, rgba(255,255,255,0.08), rgba(0,0,0,0.12)), radial-gradient(circle at 50% 0%, rgba(130,60,200,0.55), rgba(50,12,80,0.92) 60%, rgba(18,3,30,0.96) 100%)",
-            boxShadow:
-              "inset 0 1px 0 rgba(255,255,255,0.12), 0 25px 60px rgba(0,0,0,0.55)",
-          } as const;
-          const cardStyle = {
-            background:
-              "linear-gradient(180deg, rgba(255,255,255,0.08), rgba(0,0,0,0.1)), radial-gradient(circle at 50% 20%, rgba(140,70,220,0.55), rgba(45,10,70,0.92) 55%, rgba(20,2,35,0.96) 100%)",
-            boxShadow:
-              "inset 0 1px 0 rgba(255,255,255,0.12), inset 0 -18px 24px rgba(0,0,0,0.22), 0 14px 24px rgba(0,0,0,0.45)",
-          } as const;
-          const slotStyle = {
-            background:
-              "linear-gradient(180deg, rgba(255,255,255,0.08), rgba(0,0,0,0.12)), linear-gradient(180deg, rgba(95,30,140,0.78), rgba(30,5,52,0.92))",
-            boxShadow:
-              "inset 0 1px 0 rgba(255,255,255,0.14), inset 0 -8px 16px rgba(0,0,0,0.35)",
-          } as const;
-          const actionButtonStyle = (variant: "gray" | "green") =>
-            ({
-              background:
-                variant === "green"
-                  ? "linear-gradient(180deg, rgba(255,255,255,0.18), rgba(0,0,0,0.16)), linear-gradient(180deg, rgba(90,240,90,0.92), rgba(20,140,20,0.92))"
-                  : "linear-gradient(180deg, rgba(255,255,255,0.18), rgba(0,0,0,0.16)), linear-gradient(180deg, rgba(210,210,220,0.55), rgba(120,120,130,0.55))",
-              border: "1px solid rgba(0,0,0,0.35)",
-              boxShadow:
-                "inset 0 1px 0 rgba(255,255,255,0.25), inset 0 -10px 16px rgba(0,0,0,0.22), 0 14px 24px rgba(0,0,0,0.35)",
-            } as const);
+      <div className="relative z-10 mx-auto flex min-h-[100dvh] lg:h-[100dvh] w-full max-w-[1440px] flex-col justify-between px-3 py-2 sm:px-4 sm:py-2.5 lg:px-5 lg:py-3 lg:overflow-hidden">
+        {/* TOP BAR / HUD */}
+        <header className="flex w-full items-center justify-between gap-2 sm:gap-4 shrink-0">
+          {/* LEFT: BALANCE */}
+          <div className="flex items-center gap-2 sm:gap-2.5 rounded-2xl border border-[#462373] bg-[#16082B] px-3 py-1.5 sm:px-4 sm:py-1.5 shadow-md">
+            <div className="flex h-7 w-7 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-xl bg-amber-400/20 text-amber-300 shadow-inner">
+              <svg viewBox="0 0 24 24" className="h-4 w-4 sm:h-5 sm:w-5" fill="currentColor">
+                <path d="M21 7.28V5c0-1.1-.9-2-2-2H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-2.28c.59-.35 1-.99 1-1.72V9c0-.73-.41-1.37-1-1.72zM20 9v6h-7V9h7zM5 19V5h14v2h-6c-1.1 0-2 .9-2 2v6c0 1.1.9 2 2 2h6v2H5z" />
+                <circle cx="16" cy="12" r="1.5" />
+              </svg>
+            </div>
+            <div>
+              <div className="text-[9px] sm:text-[10px] font-bold tracking-wider text-purple-200/70 uppercase leading-none">
+                BALANCE
+              </div>
+              <div className="text-sm sm:text-base font-black text-amber-300 leading-tight mt-0.5">
+                ₹{wallet.toLocaleString()}
+              </div>
+            </div>
+          </div>
 
-          const historyCellClass = (n: number) =>
-            NUMBER_TILE_CLASSES[n] || NUMBER_TILE_CLASSES[0];
+          {/* CENTER: GAME ID PILL */}
+          <div className="flex items-center gap-2 rounded-full border border-[#462373] bg-[#16082B] px-3.5 py-1.5 sm:px-5 sm:py-1.5 shadow-md max-w-[45%] sm:max-w-none">
+            <span className="hidden sm:inline text-[11px] font-bold text-purple-200/70">
+              GAME ID:
+            </span>
+            <span className="text-[10px] sm:text-xs font-black tracking-wider text-white truncate max-w-[120px] sm:max-w-[280px]">
+              {roundIdLabel}
+            </span>
+            <button
+              type="button"
+              onClick={handleCopyGameId}
+              className="shrink-0 p-1 text-purple-300 hover:text-white transition active:scale-95"
+              title="Copy Game ID"
+            >
+              {copiedGameId ? (
+                <span className="text-[9px] font-black text-emerald-400">COPIED</span>
+              ) : (
+                <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 sm:h-4 sm:w-4" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
+              )}
+            </button>
+          </div>
 
-          return (
-            <>
-              <header className="flex w-full min-w-0 flex-col gap-2 sm:gap-3 md:flex-row md:items-center md:justify-between">
-                <div className="flex min-w-0 flex-wrap items-center gap-2">
-                  <div
-                    className="max-w-full rounded-full px-3 py-1.5 text-xs font-bold tracking-wide sm:px-5 sm:py-2 sm:text-sm"
-                    style={hudPillStyle}
-                  >
-                    <span className="opacity-90">BALANCE :</span>
-                    <span className="ml-2 font-black">
-                      ₹{wallet.toLocaleString()}
-                    </span>
+          {/* RIGHT: DRAW TIME, SOUND, LOGOUT */}
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            {/* DRAW TIME */}
+            <div className="flex items-center gap-1.5 sm:gap-2 rounded-2xl border border-[#462373] bg-[#16082B] px-3 py-1.5 sm:px-3.5 sm:py-1.5 shadow-md">
+              <svg viewBox="0 0 24 24" className="h-4 w-4 sm:h-5 sm:w-5 text-amber-400" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+              <div>
+                <div className="text-[8px] sm:text-[9px] font-bold tracking-wider text-purple-200/70 uppercase leading-none">
+                  DRAW TIME
+                </div>
+                <div className="text-xs sm:text-sm font-black text-amber-300 leading-tight mt-0.5">
+                  {drawTimeLabel}
+                </div>
+              </div>
+            </div>
+
+            {/* SOUND TOGGLE */}
+            <button
+              type="button"
+              onClick={() =>
+                setSoundOn((prev) => {
+                  const next = !prev;
+                  const audio = spinAudioRef.current;
+                  if (audio) {
+                    audio.muted = !next;
+                    if (!next) {
+                      audio.pause();
+                      audio.currentTime = 0;
+                    } else if (
+                      spinEndRef.current &&
+                      spinEndRef.current > Date.now()
+                    ) {
+                      audio.play().catch(() => {});
+                    }
+                  }
+                  return next;
+                })
+              }
+              className={`flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl border transition shadow-md ${
+                soundOn
+                  ? "border-[#462373] bg-[#16082B] text-purple-200 hover:text-white"
+                  : "border-red-400/40 bg-[#1f091b] text-red-300"
+              }`}
+              title={soundOn ? "Mute sound" : "Unmute sound"}
+            >
+              {soundOn ? (
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 10h4l5-4v12l-5-4H3z" />
+                  <path d="M16 8c1.5 1.5 1.5 6 0 7.5" />
+                  <path d="M19 5c3 3 3 11 0 14" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 10h4l5-4v12l-5-4H3z" />
+                  <path d="M16 9l5 5" />
+                  <path d="M21 9l-5 5" />
+                </svg>
+              )}
+            </button>
+
+            {/* EXIT / LOGOUT BUTTON */}
+            <button
+              type="button"
+              onClick={logout}
+              className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl border border-[#462373] bg-[#16082B] text-purple-200 hover:text-white transition shadow-md"
+              title="Logout"
+            >
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+        </header>
+
+        {/* MAIN GAME CONTAINER: 2 Balanced Columns without empty gaps */}
+        <div className="mt-3 flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4 items-stretch">
+          {/* LEFT COLUMN: All user controls compactly stacked */}
+          <div className="order-2 lg:order-1 flex flex-col gap-3 lg:gap-4 h-full min-h-0">
+            {/* 1. CHOOSE A NUMBER CARD */}
+            <div className="rounded-2xl border border-[#462373] bg-[#16082B] p-3 xl:p-4 shadow-lg flex flex-col justify-center">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-base xl:text-lg font-black tracking-wider uppercase leading-tight">
+                    CHOOSE A <span className="text-amber-400">NUMBER</span>
+                  </h2>
+                  <p className="text-[11px] xl:text-xs text-purple-200/60 mt-0.5">
+                    Select any number from 0 - 9 and place your chips
+                  </p>
+                </div>
+              </div>
+
+              {/* UNIFIED 5-COLS GRID */}
+              <div className="grid grid-cols-5 gap-1.5 sm:gap-2 xl:gap-2.5 mt-3 xl:mt-4 w-full place-items-center">
+                {bets.map((bet) => {
+                  const theme = NUMBER_BUTTON_THEMES[bet.number] || NUMBER_BUTTON_THEMES[0];
+                  const chipImage = CHIP_IMAGES[bet.lastChipIdx] || CHIP_IMAGES[0];
+                  return (
+                    <button
+                      key={bet.number}
+                      type="button"
+                      onClick={() => placeInstantBet(bet.number)}
+                      disabled={isSpinning}
+                      className="chiclet-btn relative flex flex-col items-center justify-center w-full max-w-[75px] aspect-square rounded-xl xl:rounded-2xl hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                      style={{
+                        background: theme.bg,
+                        border: theme.border,
+                        color: theme.textColor,
+                        boxShadow: theme.boxShadow,
+                      }}
+                    >
+                      <span className="text-2xl xl:text-3xl font-black drop-shadow-md">
+                        {bet.number}
+                      </span>
+                      {/* Placed Bet Badge */}
+                      {bet.amount > 0 && (
+                        <div className="absolute bottom-1 inset-x-1 flex items-center justify-center gap-1 rounded-full bg-black/85 border border-amber-300/70 px-1 py-0.2 shadow-md">
+                          <div
+                            className="h-3 w-3 shrink-0 rounded-full border border-amber-300/60"
+                            style={{
+                              backgroundImage: `url(${chipImage})`,
+                              backgroundSize: "cover",
+                              backgroundPosition: "center",
+                            }}
+                          />
+                          <span className="text-[9px] xl:text-[10px] font-black text-amber-300 truncate">
+                            ₹{bet.amount.toLocaleString()}
+                          </span>
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 2. SELECT YOUR CHIPS CARD */}
+            <div className="rounded-2xl border border-[#462373] bg-[#16082B] p-3 xl:p-4 shadow-lg shrink-0">
+              <h2 className="text-sm xl:text-base font-black tracking-wider uppercase leading-none">
+                SELECT YOUR <span className="text-amber-400">CHIPS</span>
+              </h2>
+
+              <div className="mt-2.5 flex items-center justify-between gap-3">
+                {/* CHIPS RACK (2 Rows: 5 in top row, 4 in bottom row) */}
+                <div className="flex-1 space-y-2">
+                  {/* Row 1: 10, 50, 100, 500, 1,000 */}
+                  <div className="grid grid-cols-5 gap-1.5 sm:gap-2 justify-items-center">
+                    {CHIPS.slice(0, 5).map((chip, idx) => (
+                      <button
+                        key={chip}
+                        type="button"
+                        onClick={() => setSelectedChip(chip)}
+                        className={`relative flex h-11 w-11 sm:h-12 sm:w-12 xl:h-14 xl:w-14 items-center justify-center rounded-full transition-transform active:scale-95 ${
+                          selectedChip === chip
+                            ? "scale-110 ring-4 ring-amber-400 shadow-[0_0_20px_rgba(251,191,36,0.7)] z-10"
+                            : "hover:scale-105 opacity-90 hover:opacity-100"
+                        }`}
+                        style={{
+                          backgroundImage: `url(${CHIP_IMAGES[idx]})`,
+                          backgroundSize: "cover",
+                          backgroundPosition: "center",
+                          filter: "drop-shadow(0 4px 10px rgba(0,0,0,0.5))",
+                        }}
+                      >
+                        <span className="text-[10px] xl:text-xs font-black text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
+                          {chip.toLocaleString()}
+                        </span>
+                      </button>
+                    ))}
                   </div>
-                  <div
-                    className="max-w-full rounded-full px-3 py-1.5 text-xs font-bold tracking-wide sm:px-5 sm:py-2 sm:text-sm"
-                    style={hudPillStyle}
-                  >
-                    <span className="opacity-90">GAME ID :</span>
-                    <span className="ml-2 break-all font-black">{roundIdLabel}</span>
+
+                  {/* Row 2: 5,000, 10,000, 25,000, 50,000 */}
+                  <div className="flex items-center justify-center gap-3 sm:gap-4 xl:gap-5">
+                    {CHIPS.slice(5).map((chip, idx) => (
+                      <button
+                        key={chip}
+                        type="button"
+                        onClick={() => setSelectedChip(chip)}
+                        className={`relative flex h-11 w-11 sm:h-12 sm:w-12 xl:h-14 xl:w-14 items-center justify-center rounded-full transition-transform active:scale-95 ${
+                          selectedChip === chip
+                            ? "scale-110 ring-4 ring-amber-400 shadow-[0_0_20px_rgba(251,191,36,0.7)] z-10"
+                            : "hover:scale-105 opacity-90 hover:opacity-100"
+                        }`}
+                        style={{
+                          backgroundImage: `url(${CHIP_IMAGES[idx + 5]})`,
+                          backgroundSize: "cover",
+                          backgroundPosition: "center",
+                          filter: "drop-shadow(0 4px 10px rgba(0,0,0,0.5))",
+                        }}
+                      >
+                        <span className="text-[9px] xl:text-[10px] font-black text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
+                          {chip.toLocaleString()}
+                        </span>
+                      </button>
+                    ))}
                   </div>
                 </div>
 
-                <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3 md:justify-end">
-                  <div
-                    className="max-w-full rounded-full px-3 py-1.5 text-xs font-bold tracking-wide sm:px-5 sm:py-2 sm:text-sm"
-                    style={hudPillStyle}
-                  >
-                    <span className="opacity-90">DRAW TIME :</span>
-                    <span className="ml-2 font-black">{drawTimeLabel}</span>
-                  </div>
+                {/* ACTION BUTTONS (DOUBLE, UNDO, CLEAR) */}
+                <div className="flex flex-col gap-1.5 xl:gap-2 w-28 sm:w-32 xl:w-36 shrink-0">
+                  {/* DOUBLE */}
                   <button
-                    className="grid h-9 w-9 place-items-center rounded-lg font-black text-slate-900 sm:h-10 sm:w-10"
-                    style={closeStyle}
-                    onClick={logout}
-                    aria-label="Close"
-                    title="Logout"
+                    type="button"
+                    onClick={doubleBets}
+                    disabled={isSpinning || totalBet === 0}
+                    className="chiclet-btn w-full h-8 xl:h-9 rounded-xl flex items-center justify-center gap-1.5 font-black text-xs text-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
+                    style={{
+                      background: "linear-gradient(180deg, #fcd34d 0%, #d97706 100%)",
+                      border: "1px solid rgba(253, 230, 138, 0.4)",
+                      boxShadow: "inset 0 -4px 0px rgba(120, 53, 15, 0.4), 0 2px 4px rgba(0,0,0,0.3)",
+                    }}
                   >
-                    ×
+                    <span className="flex h-4 w-4 items-center justify-center rounded-full border border-slate-900 text-[9px] font-black">
+                      2x
+                    </span>
+                    <span>DOUBLE</span>
+                  </button>
+
+                  {/* UNDO */}
+                  <button
+                    type="button"
+                    onClick={undoBet}
+                    disabled={isSpinning || lastPlacedBets.length === 0}
+                    className="chiclet-btn w-full h-8 xl:h-9 rounded-xl flex items-center justify-center gap-1.5 font-black text-xs text-white disabled:cursor-not-allowed disabled:opacity-50"
+                    style={{
+                      background: "linear-gradient(180deg, #4ade80 0%, #16a34a 100%)",
+                      border: "1px solid rgba(187, 247, 208, 0.4)",
+                      boxShadow: "inset 0 -4px 0px rgba(21, 128, 61, 0.4), 0 2px 4px rgba(0,0,0,0.3)",
+                    }}
+                  >
+                    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3 10h10a5 5 0 0 1 5 5v2" />
+                      <polyline points="7 6 3 10 7 14" />
+                    </svg>
+                    <span>UNDO</span>
+                  </button>
+
+                  {/* CLEAR */}
+                  <button
+                    type="button"
+                    onClick={clearBets}
+                    disabled={isSpinning || lastPlacedBets.length === 0}
+                    className="chiclet-btn w-full h-8 xl:h-9 rounded-xl flex items-center justify-center gap-1.5 font-black text-xs text-white disabled:cursor-not-allowed disabled:opacity-50"
+                    style={{
+                      background: "linear-gradient(180deg, #f87171 0%, #dc2626 100%)",
+                      border: "1px solid rgba(254, 202, 202, 0.4)",
+                      boxShadow: "inset 0 -4px 0px rgba(153, 27, 27, 0.4), 0 2px 4px rgba(0,0,0,0.3)",
+                    }}
+                  >
+                    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="3 6 5 6 21 6" />
+                      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                      <path d="M10 11v6" />
+                      <path d="M14 11v6" />
+                    </svg>
+                    <span>CLEAR</span>
                   </button>
                 </div>
-              </header>
+              </div>
+            </div>
 
-              <div className="mt-4 grid min-w-0 items-start gap-4 xl:mt-6 xl:flex-1 xl:min-h-0 xl:items-stretch xl:grid-cols-[1fr_600px]">
-                <section className="order-2 min-w-0 space-y-4 px-2 xl:order-1 xl:px-0">
-                  <div className="grid md:grid-cols-[1fr_220px_130px] gap-4 items-start">
-                    <div
-                      className="mx-auto w-full max-w-[calc(100vw-2rem)] rounded-[20px] border-2 border-amber-200/55 p-2.5 sm:rounded-[26px] sm:border-[3px] sm:p-4 md:col-span-3 md:max-w-none"
-                      style={boardStyle}
-                    >
-                      <div className="grid grid-cols-5 gap-1.5 sm:gap-3">
-                        {bets.map((bet) => {
-                          const chipImage =
-                            CHIP_IMAGES[bet.lastChipIdx] || CHIP_IMAGES[0];
-                          const tileClass =
-                            NUMBER_TILE_CLASSES[bet.number] ||
-                            NUMBER_TILE_CLASSES[0];
-                          return (
-                            <button
-                              key={bet.number}
-                              onClick={() => placeInstantBet(bet.number)}
-                              disabled={isSpinning}
-                              className={`relative h-[110px] overflow-hidden rounded-[16px] border-2 border-amber-200/65 p-1.5 transition disabled:cursor-not-allowed disabled:opacity-60 sm:h-[132px] sm:rounded-[22px] sm:border-[3px] sm:p-2 md:h-[148px] ${
-                                bet.amount > 0
-                                  ? "shadow-[0_0_0_2px_rgba(255,220,140,0.25),0_16px_30px_rgba(0,0,0,0.45)]"
-                                  : "shadow-[0_14px_24px_rgba(0,0,0,0.4)] hover:brightness-110"
-                              }`}
-                              style={cardStyle}
-                            >
-                              <div
-                                className={`flex h-8 items-center justify-center rounded-lg border-2 border-amber-200/70 text-[22px] font-black shadow-[0_8px_14px_rgba(0,0,0,0.5)] sm:h-10 sm:rounded-xl sm:text-[28px] ${tileClass}`}
-                              >
-                                {bet.number}
-                              </div>
-                              <div
-                                className="relative mt-1.5 h-[58px] overflow-hidden rounded-xl border-2 border-black/40 sm:mt-2 sm:h-[72px] sm:rounded-2xl md:h-[80px]"
-                                style={slotStyle}
-                              >
-                                <div className="absolute inset-[8px] rounded-lg border border-white/10 bg-black/20 shadow-[inset_0_0_18px_rgba(0,0,0,0.45)] sm:inset-[10px] sm:rounded-xl" />
-                                {bet.amount > 0 && (
-                                  <>
-                                    <div className="absolute inset-0 flex items-center justify-center">
-                                      <div
-                                        className="h-9 w-9 rounded-full border border-amber-200/70 shadow-[0_16px_22px_rgba(0,0,0,0.6)] sm:h-11 sm:w-11 md:h-12 md:w-12"
-                                        style={{
-                                          backgroundImage: `url(${chipImage})`,
-                                          backgroundSize: "cover",
-                                          backgroundPosition: "center",
-                                        }}
-                                      />
-                                    </div>
-                                    <div className="absolute bottom-1 left-1/2 max-w-[calc(100%-0.5rem)] -translate-x-1/2 rounded-full border border-amber-200/35 bg-black/65 px-1.5 py-0.5 text-center text-[9px] leading-none font-black text-amber-200 shadow-[0_12px_18px_rgba(0,0,0,0.55)] whitespace-nowrap sm:bottom-2 sm:max-w-[calc(100%-1rem)] sm:px-3 sm:py-1 sm:text-[11px]">
-                                      ₹{bet.amount.toLocaleString()}
-                                    </div>
-                                  </>
-                                )}
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <div className="mx-auto flex w-full max-w-[calc(100vw-2rem)] items-center justify-center px-1 md:col-span-2 md:max-w-none md:px-0">
-                      <div className="w-full pr-1 sm:pr-0 md:pr-0">
-                        <div className="grid w-full grid-cols-5 justify-items-center gap-2 sm:gap-3">
-                          {CHIPS.map((chip, idx) => (
-                            <button
-                              key={chip}
-                              className={`relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border-2 text-center transition sm:h-14 sm:w-14 md:h-[76px] md:w-[76px] ${
-                                selectedChip === chip
-                                  ? "border-white shadow-[0_0_0_2px_rgba(255,220,140,0.35),0_0_24px_rgba(255,220,140,0.35)] scale-[1.03]"
-                                  : "border-white/25 hover:border-white/60"
-                              }`}
-                              onClick={() => setSelectedChip(chip)}
-                              style={{
-                                backgroundImage: `url(${
-                                  CHIP_IMAGES[idx] || CHIP_IMAGES[0]
-                                })`,
-                                backgroundSize: "cover",
-                                backgroundPosition: "center",
-                                backgroundRepeat: "no-repeat",
-                                boxShadow:
-                                  "0 10px 16px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.25)",
-                              }}
-                            >
-                              <span className="relative text-[11px] font-black drop-shadow-[0_4px_6px_rgba(0,0,0,0.7)] sm:text-sm">
-                                {chip.toLocaleString()}
-                              </span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mx-auto flex w-full max-w-[calc(100vw-2rem)] flex-wrap items-stretch gap-2 pt-0 md:col-start-3 md:row-span-3 md:row-start-2 md:max-w-none md:flex-col md:flex-nowrap md:gap-3 md:self-stretch md:justify-start md:pt-1">
-                      <button
-                        className="h-11 min-w-[31%] flex-1 rounded-full font-black tracking-wider text-slate-900 transition hover:brightness-110 active:brightness-105 disabled:cursor-not-allowed disabled:opacity-95 md:h-12 md:min-w-0 md:w-full md:flex-none"
-                        style={{
-                          background:
-                            "linear-gradient(180deg, rgba(255,255,255,0.22), rgba(0,0,0,0.14)), linear-gradient(180deg, rgba(255,235,120,0.95), rgba(220,150,10,0.92))",
-                          border: "1px solid rgba(0,0,0,0.35)",
-                          boxShadow:
-                            "inset 0 1px 0 rgba(255,255,255,0.28), inset 0 -10px 16px rgba(0,0,0,0.18), 0 14px 24px rgba(0,0,0,0.35)",
-                        }}
-                        onClick={doubleBets}
-                        disabled={isSpinning || totalBet === 0}
-                      >
-                        DOUBLE
-                      </button>
-                      <button
-                        className="h-11 min-w-[31%] flex-1 rounded-full font-black tracking-wider text-white transition hover:brightness-110 active:brightness-105 disabled:cursor-not-allowed disabled:opacity-95 md:h-12 md:min-w-0 md:w-full md:flex-none"
-                        style={{
-                          background:
-                            "linear-gradient(180deg, rgba(255,255,255,0.18), rgba(0,0,0,0.14)), linear-gradient(180deg, rgba(90,240,90,0.95), rgba(20,140,20,0.92))",
-                          border: "1px solid rgba(0,0,0,0.35)",
-                          boxShadow:
-                            "inset 0 1px 0 rgba(255,255,255,0.28), inset 0 -10px 16px rgba(0,0,0,0.18), 0 14px 24px rgba(0,0,0,0.35)",
-                        }}
-                        onClick={undoBet}
-                        disabled={isSpinning || lastPlacedBets.length === 0}
-                        title="Undo last bet"
-                      >
-                        UNDO
-                      </button>
-                      <button
-                        className="h-11 min-w-[31%] flex-1 rounded-full font-black tracking-wider text-white transition hover:brightness-110 active:brightness-105 disabled:cursor-not-allowed disabled:opacity-95 md:h-12 md:min-w-0 md:w-full md:flex-none"
-                        style={{
-                          background:
-                            "linear-gradient(180deg, rgba(255,255,255,0.18), rgba(0,0,0,0.14)), linear-gradient(180deg, rgba(255,120,120,0.95), rgba(170,15,25,0.92))",
-                          border: "1px solid rgba(0,0,0,0.35)",
-                          boxShadow:
-                            "inset 0 1px 0 rgba(255,255,255,0.28), inset 0 -10px 16px rgba(0,0,0,0.18), 0 14px 24px rgba(0,0,0,0.35)",
-                        }}
-                        onClick={clearBets}
-                        disabled={isSpinning || lastPlacedBets.length === 0}
-                      >
-                        CLEAR
-                      </button>
-                    </div>
-
-                    <div
-                      className="mx-auto w-full max-w-[calc(100vw-2rem)] rounded-2xl border-2 border-amber-200/45 px-2.5 py-2 sm:px-3 md:col-span-2 md:max-w-none"
-                      style={{
-                        background:
-                          "linear-gradient(180deg, rgba(0,0,0,0.35), rgba(0,0,0,0.55))",
-                        boxShadow:
-                          "inset 0 1px 0 rgba(255,255,255,0.12), 0 14px 24px rgba(0,0,0,0.35)",
-                      }}
-                    >
-                      <div className="overflow-x-auto overflow-y-hidden [touch-action:pan-x]">
-                        <div className="flex w-max items-center gap-1.5">
-                        {recentHistory.map((h, idx) => (
-                          <div
-                            key={`${h.roundId}-${h.result}-${idx}`}
-                            className={`flex h-8 w-8 items-center justify-center rounded-md border border-black/30 text-xl leading-none font-black shadow-[0_10px_14px_rgba(0,0,0,0.45)] sm:h-10 sm:w-10 sm:rounded-lg sm:text-2xl ${historyCellClass(
-                              h.result
-                            )}`}
-                          >
-                            {h.result}
-                          </div>
-                        ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mx-auto grid w-full max-w-[calc(100vw-2rem)] items-stretch gap-3 sm:grid-cols-[1fr_220px] sm:gap-4 md:col-span-2 md:max-w-none">
+            {/* 3. RECENT NUMBERS & STATS */}
+            <div className="flex flex-col gap-3 lg:gap-4 shrink-0">
+              {/* RECENT NUMBERS */}
+              <div className="rounded-2xl border border-[#462373] bg-[#16082B] p-2.5 xl:p-3 shadow-md flex flex-col justify-center">
+                <div className="text-[10px] xl:text-[11px] font-bold uppercase tracking-wider text-purple-200/70 mb-1 leading-none">
+                  RECENT NUMBERS
+                </div>
+                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+                  {recentHistory.map((h, idx) => {
+                    const theme = NUMBER_BUTTON_THEMES[h.result] || NUMBER_BUTTON_THEMES[0];
+                    return (
                       <div
-                        className="rounded-2xl border-2 border-purple-200/15 px-3 py-2.5 shadow-[0_18px_40px_rgba(0,0,0,0.45)] sm:px-4 sm:py-3"
+                        key={`${h.roundId}-${h.result}-${idx}`}
+                        className="flex h-7 w-7 xl:h-8 xl:w-8 shrink-0 items-center justify-center rounded-lg font-black text-sm xl:text-base shadow-sm border"
                         style={{
-                          background:
-                            "linear-gradient(180deg, rgba(255,255,255,0.08), rgba(0,0,0,0.12)), linear-gradient(180deg, rgba(110,40,160,0.65), rgba(40,8,70,0.9))",
+                          background: theme.bg,
+                          borderColor: theme.border,
+                          color: theme.textColor,
+                          boxShadow: theme.boxShadow,
                         }}
                       >
-                        <p className="text-[24px] font-black leading-[1.05] text-lime-300 drop-shadow-[0_6px_10px_rgba(0,0,0,0.55)] sm:text-[28px] md:text-[30px]">
-                          Place your
-                          <br />
-                          chips
-                        </p>
+                        {h.result}
                       </div>
-                      <div
-                        className="rounded-2xl border-2 border-purple-200/15 px-4 py-3 text-center shadow-[0_18px_40px_rgba(0,0,0,0.45)] sm:px-5 sm:py-4"
-                        style={{
-                          background:
-                            "linear-gradient(180deg, rgba(255,255,255,0.08), rgba(0,0,0,0.12)), linear-gradient(180deg, rgba(90,20,140,0.65), rgba(25,3,45,0.92))",
-                        }}
-                      >
-                        <p className="text-[10px] font-bold tracking-[0.3em] text-white/80 sm:text-[11px] sm:tracking-[0.35em]">
-                          TIME LEFT
-                        </p>
-                        <p className="mt-1 text-[36px] font-black text-white drop-shadow-[0_10px_18px_rgba(0,0,0,0.55)] sm:mt-1.5 sm:text-[42px] md:text-[46px]">
-                          {countdownLabel}
-                        </p>
-                      </div>
-                    </div>
+                    );
+                  })}
+                  {!recentHistory.length && (
+                    <span className="text-xs text-purple-200/40">No rounds yet</span>
+                  )}
+                </div>
+              </div>
 
-                    {status && (
-                      <p className="text-center text-xs font-semibold text-amber-200 drop-shadow-[0_6px_10px_rgba(0,0,0,0.6)] sm:text-sm md:col-span-3">
-                        {status}
-                      </p>
-                    )}
+              {/* STATS: TOTAL BET & POTENTIAL WIN */}
+              <div className="grid grid-cols-2 gap-3 lg:gap-4 w-full">
+                {/* TOTAL BET */}
+                <div className="rounded-2xl border border-[#462373] bg-[#16082B] p-2.5 xl:p-3 shadow-md flex items-center gap-2.5">
+                  <div className="flex h-9 w-9 xl:h-10 xl:w-10 shrink-0 items-center justify-center rounded-full border-2 border-white/60 bg-neutral-900 text-white shadow-md">
+                    <div className="h-6 w-6 rounded-full border border-dashed border-white/70 flex items-center justify-center text-[9px] font-black">
+                      00
+                    </div>
                   </div>
-                </section>
+                  <div>
+                    <div className="text-[9px] xl:text-[10px] font-bold tracking-wider text-purple-200/70 uppercase leading-none">
+                      TOTAL BET
+                    </div>
+                    <div className="text-sm xl:text-lg font-black text-white leading-tight mt-0.5">
+                      ₹{totalBet.toLocaleString()}
+                    </div>
+                  </div>
+                </div>
 
-                <section className="order-1 flex min-w-0 flex-col items-center gap-3 sm:gap-4 xl:order-2 xl:h-full xl:min-h-0">
-                  <div className="z-20 w-full max-w-full xl:sticky xl:top-2">
-                    <div className="w-full max-w-full rounded-2xl bg-black/15 px-2 py-2 backdrop-blur-[2px] xl:bg-transparent xl:px-0 xl:py-0 xl:backdrop-blur-0">
-                      <div className="flex w-full justify-center">
-                        <div className="relative">
-                          <div className="absolute -left-4 -top-2 h-5 w-5 rotate-45 rounded-sm border-2 border-cyan-200/70 bg-cyan-300/10 shadow-[0_0_20px_rgba(90,240,255,0.35)] sm:-left-6 sm:h-6 sm:w-6" />
-                          <div className="absolute -right-4 top-9 h-4 w-4 rotate-45 rounded-sm border-2 border-cyan-200/70 bg-cyan-300/10 shadow-[0_0_20px_rgba(90,240,255,0.35)] sm:-right-6 sm:top-10 sm:h-5 sm:w-5" />
-                          <h2
-                            className="text-center text-4xl font-black leading-[0.9] drop-shadow-[0_10px_18px_rgba(0,0,0,0.7)] sm:text-5xl"
-                            style={{
-                              backgroundImage:
-                                "linear-gradient(180deg, #fff3b0 0%, #ffd24a 40%, #c88412 100%)",
-                              WebkitBackgroundClip: "text",
-                              backgroundClip: "text",
-                              color: "transparent",
-                            }}
-                          >
-                            FUN
-                            <br />
-                            TIMER
-                          </h2>
-                        </div>
-                      </div>
+                {/* POTENTIAL WIN */}
+                <div className="rounded-2xl border border-[#462373] bg-[#16082B] p-2.5 xl:p-3 shadow-md flex items-center gap-2.5">
+                  <div className="flex h-9 w-9 xl:h-10 xl:w-10 shrink-0 items-center justify-center rounded-xl bg-amber-400/20 text-amber-400 shadow-md">
+                    <svg viewBox="0 0 24 24" className="h-5 w-5 xl:h-6 xl:w-6" fill="currentColor">
+                      <path d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <div className="text-[9px] xl:text-[10px] font-bold tracking-wider text-purple-200/70 uppercase leading-none">
+                      POTENTIAL WIN
+                    </div>
+                    <div className="text-sm xl:text-lg font-black text-white leading-tight mt-0.5">
+                      ₹{potentialWin.toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
-                      <div className="relative mt-2 sm:mt-0">
-                        <div className="pointer-events-none absolute left-1/2 -top-2 z-40 -translate-x-1/2">
-                          <div className="h-7 w-7 rotate-45 rounded-[10px] border border-white/30 bg-gradient-to-b from-sky-200 to-blue-600 shadow-[0_14px_24px_rgba(0,0,0,0.55)] sm:h-9 sm:w-9" />
-                        </div>
+          {/* RIGHT COLUMN: Banner, Wheel, and Bottom Stats perfectly unified */}
+          <div className="order-1 lg:order-2 flex flex-col items-center justify-between gap-1.5 xl:gap-2 h-full min-h-0">
+            {/* MOBILE BANNER WITH CROWN (Visible only on < lg screens) */}
+            <div className="flex lg:hidden flex-col items-center w-full mb-1 relative shrink-0">
+              <div className="text-amber-400 drop-shadow-[0_4px_10px_rgba(251,191,36,0.6)] mb-0.5">
+                <svg viewBox="0 0 24 24" className="h-6 w-6" fill="currentColor">
+                  <path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3c0 .55-.45 1-1 1H6c-.55 0-1-.45-1-1v-1h14v1z" />
+                </svg>
+              </div>
+              <h2
+                className="text-3xl font-black tracking-wider text-center drop-shadow-[0_6px_12px_rgba(0,0,0,0.8)]"
+                style={{
+                  backgroundImage: "linear-gradient(180deg, #fffbeb 0%, #fde047 35%, #eab308 65%, #ca8a04 100%)",
+                  WebkitBackgroundClip: "text",
+                  backgroundClip: "text",
+                  color: "transparent",
+                  WebkitTextStroke: "1px rgba(120, 53, 15, 0.6)",
+                }}
+              >
+                FUN TIMER
+              </h2>
+              <div className="relative -mt-1 rounded-full border border-amber-300/80 bg-gradient-to-r from-purple-800 via-purple-600 to-purple-800 px-5 py-0.5 shadow-[0_6px_14px_rgba(0,0,0,0.5)]">
+                <span className="text-[11px] font-black tracking-widest text-amber-200 uppercase">
+                  SPIN YOUR LUCK!
+                </span>
+              </div>
+              <div className="absolute left-1 top-4 -rotate-6 max-w-[80px] text-left text-[9px] font-bold text-pink-300/90 leading-tight drop-shadow-md">
+                Pick your number<br />Play &amp; Win!
+              </div>
+              <div className="absolute right-1 top-4 rotate-6 max-w-[80px] text-right text-[9px] font-bold text-pink-300/90 leading-tight drop-shadow-md">
+                Big Wins<br />Await!
+              </div>
+            </div>
 
-                        <div className="p-0">
-                          <div className="relative mx-auto h-[min(88vw,420px)] w-[min(88vw,420px)] max-w-full overflow-visible md:h-[520px] md:w-[520px]">
+            {/* DESKTOP ARCHED BANNER WITH DIAMOND GEMS (lg+ screens) */}
+            <div className="hidden lg:flex flex-col items-center w-full relative shrink-0 pt-1">
+              <div className="relative flex items-center justify-center">
+                {/* Arched Gold Banner Plate */}
+                <div
+                  className="relative flex items-center justify-center rounded-2xl border-[2px] border-amber-300/90 px-8 py-2 shadow-[0_8px_24px_rgba(0,0,0,0.65),inset_0_2px_4px_rgba(255,255,255,0.4)]"
+                  style={{
+                    background:
+                      "linear-gradient(180deg, rgba(60, 15, 90, 0.95) 0%, rgba(30, 5, 50, 0.95) 100%)",
+                  }}
+                >
+                  <div className="absolute -left-2 h-3.5 w-3.5 rotate-45 border-2 border-amber-300 bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)]" />
+                  <div className="absolute -right-2 h-3.5 w-3.5 rotate-45 border-2 border-amber-300 bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)]" />
+
+                  <h2
+                    className="text-3xl xl:text-4xl font-black tracking-widest text-center"
+                    style={{
+                      backgroundImage:
+                        "linear-gradient(180deg, #fffbeb 0%, #fde047 30%, #f59e0b 65%, #b45309 100%)",
+                      WebkitBackgroundClip: "text",
+                      backgroundClip: "text",
+                      color: "transparent",
+                      filter: "drop-shadow(0 4px 8px rgba(0,0,0,0.8))",
+                    }}
+                  >
+                    FUN TIMER
+                  </h2>
+                </div>
+
+                {/* Purple Gemstone Pointer pointing down at wheel */}
+                <div className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 z-40">
+                  <div className="h-5 w-5 rotate-45 rounded-sm border-2 border-amber-300 bg-gradient-to-br from-fuchsia-400 via-purple-600 to-indigo-800 shadow-[0_0_12px_rgba(217,70,239,0.8)]" />
+                </div>
+
+                {/* Pink Script Arrow: SPIN YOUR LUCK! */}
+                <div className="absolute -right-24 top-2 rotate-12 flex flex-col items-center">
+                  <span className="text-[11px] font-black text-pink-400 tracking-wider drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] leading-tight">
+                    SPIN<br />YOUR LUCK!
+                  </span>
+                  <svg viewBox="0 0 40 40" className="h-7 w-7 text-pink-400 -rotate-45" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                    <path d="M10 10 C 20 20, 25 30, 20 35 M 20 35 L 28 32 M 20 35 L 22 25" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            {/* WHEEL CONTAINER */}
+            <div className="relative mx-auto flex flex-col items-center justify-center flex-1 min-h-0 w-full py-1">
+              {/* Mobile pointer */}
+              <div className="lg:hidden pointer-events-none absolute left-1/2 -top-2 z-40 -translate-x-1/2">
+                <div className="h-6 w-6 rotate-45 rounded-[6px] border-2 border-amber-300 bg-gradient-to-br from-fuchsia-400 via-purple-600 to-indigo-800 shadow-[0_0_12px_rgba(217,70,239,0.8)]" />
+              </div>
+
+              {/* WHEEL DISK CONTAINER: Perfectly proportional to viewport */}
+              <div className="relative mx-auto h-[min(50vh,350px)] w-[min(50vh,350px)] sm:h-[min(55vh,400px)] sm:w-[min(55vh,400px)] lg:h-[min(60vh,480px)] lg:w-[min(60vh,480px)] xl:h-[min(70vh,580px)] xl:w-[min(70vh,580px)] overflow-visible">
+                {/* Rotating Segmented Disk */}
+                <div
+                  className="absolute inset-[12%] overflow-hidden rounded-full shadow-[0_20px_50px_rgba(0,0,0,0.65)] sm:inset-[11%] md:inset-[50px]"
+                  style={{
+                    transform: `rotate(${spinRotation}deg)`,
+                    transition: `transform ${wheelTransitionMs}ms ${wheelTransitionTiming}`,
+                    transformOrigin: "50% 50%",
+                    background:
+                      "radial-gradient(circle at 50% 45%, #0b5e1c 0%, #0a6f1f 42%, #14ae34 76%, #0d8f28 100%)",
+                  }}
+                >
+                  <div
+                    className="absolute inset-0 opacity-85"
+                    style={{
+                      background:
+                        "repeating-conic-gradient(from -90deg, rgba(0,0,0,0.12) 0deg 1.5deg, transparent 1.5deg 36deg), repeating-conic-gradient(from -90deg, #1bb240 0deg 18deg, #13972f 18deg 36deg)",
+                    }}
+                  />
+                  <div
+                    className="absolute inset-0 pointer-events-none"
+                    style={{
+                      background:
+                        "repeating-conic-gradient(from -90deg, transparent 0deg 35deg, rgba(0,0,0,0.3) 35deg 36deg)",
+                      mixBlendMode: "multiply",
+                    }}
+                  />
+                  <div
+                    className="absolute inset-[6%] rounded-full pointer-events-none"
+                    style={{
+                      boxShadow:
+                        "inset 0 0 30px rgba(0,0,0,0.28), 0 0 14px rgba(0,0,0,0.25)",
+                    }}
+                  />
+                  <div className="absolute inset-0 pointer-events-none">
+                    {[...Array(10).keys()].map((n) => {
+                      const angleDeg = n * 36;
+                      const isHit = highlightNumber === n;
+                      return (
                         <div
-                          className="absolute inset-[12%] overflow-hidden rounded-full shadow-[0_26px_70px_rgba(0,0,0,0.55)] sm:inset-[11%] md:inset-[54px]"
+                          key={n}
+                          className="absolute inset-0"
                           style={{
-                            transform: `rotate(${spinRotation}deg)`,
-                            transition: `transform ${wheelTransitionMs}ms ${wheelTransitionTiming}`,
-                            transformOrigin: "50% 50%",
-                            background:
-                              "radial-gradient(circle at 50% 45%, #0b5e1c 0%, #0a6f1f 42%, #14ae34 76%, #0d8f28 100%)",
+                            transform: `rotate(${angleDeg}deg)`,
                           }}
                         >
-                          <div
-                            className="absolute inset-0 opacity-85"
+                          <div 
+                            className="absolute left-1/2 top-[6%] sm:top-[8%] -translate-x-1/2 flex items-center justify-center"
                             style={{
-                              background:
-                                "repeating-conic-gradient(from -90deg, rgba(0,0,0,0.12) 0deg 1.5deg, transparent 1.5deg 36deg), repeating-conic-gradient(from -90deg, #1bb240 0deg 18deg, #13972f 18deg 36deg)",
+                              transform: `rotate(${-(angleDeg + spinRotation)}deg)`
                             }}
-                          />
-                          <div
-                            className="absolute inset-0 pointer-events-none"
-                            style={{
-                              background:
-                                "repeating-conic-gradient(from -90deg, transparent 0deg 35deg, rgba(0,0,0,0.3) 35deg 36deg)",
-                              mixBlendMode: "multiply",
-                            }}
-                          />
-                          <div
-                            className="absolute inset-[6%] rounded-full pointer-events-none"
-                            style={{
-                              boxShadow:
-                                "inset 0 0 30px rgba(0,0,0,0.28), 0 0 14px rgba(0,0,0,0.25)",
-                            }}
-                          />
-                          <div className="absolute inset-0 pointer-events-none">
-                            {[...Array(10).keys()].map((n) => {
-                              const angleDeg = n * 36;
-                              const isHit = highlightNumber === n;
-                              return (
-                                <div
-                                  key={n}
-                                  className="absolute left-1/2 top-1/2"
-                                  style={{
-                                    transform: `translate(-50%, -50%) rotate(${angleDeg}deg) translateY(calc(-50% - ${NUMBER_RING_OFFSET})) rotate(${-(
-                                      angleDeg + spinRotation
-                                    )}deg)`,
-                                  }}
-                                >
-                                  <span
-                                    className={`block text-2xl font-black drop-shadow-[0_6px_12px_rgba(0,0,0,0.6)] transition-transform sm:text-3xl md:text-4xl ${
-                                      isHit
-                                        ? "text-yellow-200 scale-110"
-                                        : "text-white"
-                                    }`}
-                                    style={{
-                                      textShadow: isHit
-                                        ? "0 0 10px rgba(255,214,10,0.8), 0 0 22px rgba(255,214,10,0.7)"
-                                        : "0 0 2px rgba(0,0,0,0.95), 0 0 8px rgba(0,0,0,0.7)",
-                                    }}
-                                  >
-                                    {n}
-                                  </span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                        <img
-                          src="/OuterWheelRing.png"
-                          alt="Wheel frame"
-                          className="pointer-events-none absolute left-1/2 top-1/2 z-30 h-[120%] w-[120%] -translate-x-1/2 -translate-y-1/2 select-none object-contain drop-shadow-[0_26px_48px_rgba(0,0,0,0.6)] sm:h-[118%] sm:w-[118%] md:h-[116%] md:w-[116%]"
-                        />
-                        {centerResultNumber !== null && (
-                          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-40 pointer-events-none">
-                            <div
-                              className="grid h-20 w-20 place-items-center rounded-full border-[3px] border-amber-200/70 shadow-[0_16px_34px_rgba(0,0,0,0.45)] sm:h-24 sm:w-24 md:h-28 md:w-28"
+                          >
+                            <span
+                              className={`block text-2xl font-black drop-shadow-[0_6px_12px_rgba(0,0,0,0.6)] transition-transform sm:text-3xl xl:text-4xl ${
+                                isHit ? "text-yellow-200 scale-110" : "text-white"
+                              }`}
                               style={{
-                                background:
-                                  "radial-gradient(circle at 35% 30%, rgba(255,255,255,0.32), rgba(255,230,150,0.18) 55%, rgba(0,0,0,0.35) 100%), linear-gradient(145deg, rgba(255,255,255,0.15), rgba(0,0,0,0.55))",
-                                boxShadow:
-                                  "inset 0 0 24px rgba(0,0,0,0.4), 0 14px 32px rgba(0,0,0,0.55)",
+                                textShadow: isHit
+                                  ? "0 0 10px rgba(255,214,10,0.8), 0 0 22px rgba(255,214,10,0.7)"
+                                  : "0 0 2px rgba(0,0,0,0.95), 0 0 8px rgba(0,0,0,0.7)",
                               }}
                             >
-                              <span className="text-4xl font-black text-yellow-100 drop-shadow-[0_8px_14px_rgba(0,0,0,0.7)] sm:text-5xl md:text-6xl">
-                                {centerResultNumber}
-                              </span>
-                            </div>
+                              {n}
+                            </span>
                           </div>
-                        )}
-                      </div>
-                      <div className="mt-3 flex w-full justify-center xl:justify-start">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setSoundOn((prev) => {
-                              const next = !prev;
-                              const audio = spinAudioRef.current;
-                              if (audio) {
-                                audio.muted = !next;
-                                if (!next) {
-                                  audio.pause();
-                                  audio.currentTime = 0;
-                                } else if (
-                                  spinEndRef.current &&
-                                  spinEndRef.current > Date.now()
-                                ) {
-                                  audio.play().catch(() => {});
-                                }
-                              }
-                              return next;
-                            })
-                          }
-                          className={`h-9 w-9 rounded-full border flex items-center justify-center transition ${
-                            soundOn
-                              ? "border-emerald-300/60 text-emerald-200 bg-emerald-500/10"
-                              : "border-white/20 text-pink-100/70 bg-white/5 hover:bg-white/10"
-                          }`}
-                          aria-label={
-                            soundOn ? "Mute wheel sound" : "Unmute wheel sound"
-                          }
-                          title={soundOn ? "Sound on" : "Sound off"}
-                        >
-                          {soundOn ? (
-                            <svg
-                              viewBox="0 0 24 24"
-                              className="h-4 w-4"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              aria-hidden="true"
-                            >
-                              <path d="M3 10h4l5-4v12l-5-4H3z" />
-                              <path d="M16 8c1.5 1.5 1.5 6 0 7.5" />
-                              <path d="M19 5c3 3 3 11 0 14" />
-                            </svg>
-                          ) : (
-                            <svg
-                              viewBox="0 0 24 24"
-                              className="h-4 w-4"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              aria-hidden="true"
-                            >
-                              <path d="M3 10h4l5-4v12l-5-4H3z" />
-                              <path d="M16 9l5 5" />
-                              <path d="M21 9l-5 5" />
-                            </svg>
-                          )}
-                        </button>
-                      </div>
-                    </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                    </div>
-                  </div>
+                </div>
 
-                  <div className="mx-auto grid w-full max-w-[420px] grid-cols-2 gap-2 pb-1 xl:mt-auto">
+                {/* Outer Wheel Ring Frame */}
+                <img
+                  src="/OuterWheelRing.png"
+                  alt="Wheel frame"
+                  className="pointer-events-none absolute left-1/2 top-1/2 z-30 h-[120%] w-[120%] -translate-x-1/2 -translate-y-1/2 select-none object-contain drop-shadow-[0_20px_40px_rgba(0,0,0,0.65)] sm:h-[118%] sm:w-[118%] md:h-[116%] md:w-[116%]"
+                />
+
+                {/* Center Result Number */}
+                {centerResultNumber !== null && (
+                  <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-40 pointer-events-none">
                     <div
-                      className="rounded-lg border border-white/10 px-3 py-2 shadow-[0_10px_18px_rgba(0,0,0,0.45)]"
+                      className="grid h-16 w-16 sm:h-18 sm:w-18 xl:h-22 xl:w-22 place-items-center rounded-full border-[3px] border-amber-200/90 shadow-[0_14px_30px_rgba(0,0,0,0.55)]"
                       style={{
                         background:
-                          "linear-gradient(180deg, rgba(255,255,255,0.08), rgba(0,0,0,0.12)), linear-gradient(180deg, rgba(20,40,70,0.95), rgba(5,10,20,0.95))",
+                          "radial-gradient(circle at 35% 30%, rgba(255,255,255,0.32), rgba(255,230,150,0.18) 55%, rgba(0,0,0,0.45) 100%), linear-gradient(145deg, rgba(255,255,255,0.15), rgba(0,0,0,0.65))",
+                        boxShadow:
+                          "inset 0 0 20px rgba(0,0,0,0.4), 0 12px 28px rgba(0,0,0,0.65)",
                       }}
                     >
-                      <p className="text-[11px] font-black tracking-wider text-white/80">
-                        PLAY :{" "}
-                        <span className="text-white">
-                          ₹{totalBet.toLocaleString()}
-                        </span>
-                      </p>
-                    </div>
-                    <div
-                      className="rounded-lg border border-white/10 px-3 py-2 shadow-[0_10px_18px_rgba(0,0,0,0.45)]"
-                      style={{
-                        background:
-                          "linear-gradient(180deg, rgba(255,255,255,0.08), rgba(0,0,0,0.12)), linear-gradient(180deg, rgba(20,40,70,0.95), rgba(5,10,20,0.95))",
-                      }}
-                    >
-                      <p className="text-[11px] font-black tracking-wider text-white/80">
-                        WIN :{" "}
-                        <span className="text-white">
-                          ₹{winAmount.toLocaleString()}
-                        </span>
-                      </p>
+                      <span className="text-3xl sm:text-4xl xl:text-5xl font-black text-yellow-200 drop-shadow-[0_8px_14px_rgba(0,0,0,0.8)]">
+                        {centerResultNumber}
+                      </span>
                     </div>
                   </div>
-                </section>
+                )}
               </div>
-            </>
-          );
-        })()}
+
+              {/* Multi-Tiered Golden Pedestal Under Wheel */}
+              <div className="relative -mt-5 sm:-mt-6 xl:-mt-8 flex flex-col items-center w-full z-10 pointer-events-none shrink-0">
+                <div
+                  className="h-4 sm:h-5 xl:h-6 w-[68%] rounded-full border-t border-amber-200/80 shadow-[0_4px_14px_rgba(0,0,0,0.6)]"
+                  style={{
+                    background:
+                      "linear-gradient(180deg, #fef08a 0%, #d97706 50%, #78350f 100%)",
+                  }}
+                />
+                <div
+                  className="-mt-1.5 sm:-mt-2 h-5 sm:h-6 xl:h-7 w-[82%] rounded-full border-t border-amber-300/60 shadow-[0_10px_24px_rgba(0,0,0,0.8)]"
+                  style={{
+                    background:
+                      "linear-gradient(180deg, #b45309 0%, #78350f 50%, #451a03 100%)",
+                  }}
+                />
+                <div className="-mt-2 h-5 w-[90%] rounded-full bg-purple-600/30 blur-lg" />
+              </div>
+            </div>
+
+            {/* TIMER (Directly below the wheel for all screens) */}
+            <div className="w-full shrink-0">
+              <div className="rounded-2xl border border-[#462373] bg-[#16082B] p-2.5 xl:p-3 shadow-md flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-400/20 text-amber-400 shadow-md">
+                    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
+                      <path d="M6 2v6h.01L6 8.01 10 12l-4 4 .01.01H6V22h12v-5.99h-.01L18 16l-4-4 4-3.99-.01-.01H18V2H6zm10 14.5V20H8v-3.5l4-4 4 4zM12 11.5L8 7.5V4h8v3.5l-4 4z" />
+                    </svg>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[10px] xl:text-[11px] font-bold uppercase tracking-wider text-purple-200/70 leading-none">
+                      TIME LEFT
+                    </span>
+                    <span className="text-[9px] font-bold tracking-widest text-purple-200/60 uppercase leading-none mt-0.5">
+                      SECONDS
+                    </span>
+                  </div>
+                </div>
+                <div className="text-5xl sm:text-6xl xl:text-7xl font-black text-amber-400 drop-shadow-[0_0_10px_rgba(251,191,36,0.6)]">
+                  {countdownLabel}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* STATUS MESSAGE IF ANY */}
+        {status && (
+          <div className="mt-1 text-center text-xs font-bold text-amber-300 drop-shadow-md shrink-0">
+            {status}
+          </div>
+        )}
       </div>
+
+      {/* TOASTS */}
       {resultToast && (
         <div className="fixed bottom-24 left-1/2 z-[90] w-[calc(100%-1.5rem)] max-w-md -translate-x-1/2 sm:bottom-20">
-          <div className="rounded-full border border-emerald-300/50 bg-black/85 px-4 py-2.5 text-center text-sm text-emerald-200 shadow-lg shadow-emerald-400/30 backdrop-blur-md sm:px-6 sm:py-3">
+          <div className="rounded-full border border-emerald-400/60 bg-black/90 px-5 py-3 text-center text-sm font-bold text-emerald-300 shadow-lg shadow-emerald-500/30 backdrop-blur-md">
             {resultToast}
           </div>
         </div>
       )}
       {betToast && (
         <div className="fixed bottom-8 left-1/2 z-[90] w-[calc(100%-1.5rem)] max-w-md -translate-x-1/2 sm:bottom-6">
-          <div className="rounded-full border border-amber-300/50 bg-black/80 px-4 py-2.5 text-center text-sm text-amber-200 shadow-lg shadow-amber-400/30 backdrop-blur-md sm:px-6 sm:py-3">
+          <div className="rounded-full border border-amber-400/60 bg-black/90 px-5 py-3 text-center text-sm font-bold text-amber-300 shadow-lg shadow-amber-500/30 backdrop-blur-md">
             {betToast}
           </div>
         </div>
@@ -1751,3 +1931,4 @@ export default function Game() {
     </div>
   );
 }
+
