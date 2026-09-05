@@ -6,6 +6,15 @@
 import { useEffect, useRef, useState } from "react";
 import SimplePeer from "simple-peer";
 import io, { Socket } from "socket.io-client";
+import {
+  type ContinuousSpinState,
+  type FinalSettleState,
+  isFinalSettleComplete,
+  rotationAtContinuousSpin,
+  rotationAtFinalSettle,
+  rotationModMatchesResult,
+  snapRotationToResult,
+} from "../../lib/wheelRotation";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 const SOCKET_URL = API_BASE.replace(/\/api$/, "");
@@ -13,7 +22,7 @@ const DEFAULT_SPIN_MS = 5000;
 const FINAL_SETTLE_FALLBACK_SPEED = 520;
 const MIN_FINAL_SETTLE_MS = 850;
 const FREE_SPIN_DEGREES_PER_SECOND = 540;
-const NUMBER_RING_OFFSET = "clamp(58px, 14vw, 106px)";
+const WHEEL_NUMBER_RADIUS = 35;
 const NUMBER_TILE_CLASSES = [
   "bg-gradient-to-b from-neutral-700 to-black text-white",
   "bg-gradient-to-b from-slate-50 to-slate-300 text-slate-900",
@@ -31,10 +40,8 @@ type SyncMessage = { event: string; payload: any; ts?: number };
 type WheelMotionEase = "linear";
 
 export default function WheelPage() {
-  const [token] = useState(() => {
-    if (typeof window === "undefined") return "";
-    return localStorage.getItem("player-token") || "";
-  });
+  const [token, setToken] = useState("");
+  const [authReady, setAuthReady] = useState(false);
   const [status, setStatus] = useState("");
   const [currentRound, setCurrentRound] = useState<any>(null);
   const [countdown, setCountdown] = useState(90);
@@ -66,13 +73,30 @@ export default function WheelPage() {
   const wheelMotionFrameRef = useRef<number | null>(null);
   const spinLoopFrameRef = useRef<number | null>(null);
   const finalSettleFrameRef = useRef<number | null>(null);
-  const spinLoopStateRef = useRef({
-    lastTime: 0,
-  });
   const activeSpinRoundIdRef = useRef<string | null>(null);
   const roundStartTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const continuousSpinRef = useRef<ContinuousSpinState | null>(null);
+  const finalSettleRef = useRef<FinalSettleState | null>(null);
+  const pendingRevealRef = useRef<{
+    revealAtMs: number;
+    targetRotation: number;
+    onReveal: () => void;
+  } | null>(null);
+  const highlightNumberRef = useRef<number | null>(null);
+  const isSpinningRef = useRef(false);
+
+  const commitWheelRotation = (nextRotation: number) => {
+    rotationRef.current = nextRotation;
+    setSpinRotation(nextRotation);
+  };
 
   const stopContinuousSpinLoop = () => {
+    if (continuousSpinRef.current) {
+      commitWheelRotation(
+        rotationAtContinuousSpin(continuousSpinRef.current)
+      );
+      continuousSpinRef.current = null;
+    }
     if (spinLoopFrameRef.current !== null) {
       cancelAnimationFrame(spinLoopFrameRef.current);
       spinLoopFrameRef.current = null;
@@ -80,6 +104,13 @@ export default function WheelPage() {
   };
 
   const stopFinalSettleLoop = () => {
+    if (finalSettleRef.current) {
+      const settled = rotationAtFinalSettle(finalSettleRef.current);
+      commitWheelRotation(settled);
+      if (isFinalSettleComplete(finalSettleRef.current)) {
+        finalSettleRef.current = null;
+      }
+    }
     if (finalSettleFrameRef.current !== null) {
       cancelAnimationFrame(finalSettleFrameRef.current);
       finalSettleFrameRef.current = null;
@@ -136,8 +167,11 @@ export default function WheelPage() {
   };
 
   const getCurrentWheelRotation = () => {
-    if (spinLoopFrameRef.current !== null) {
-      return rotationRef.current;
+    if (finalSettleRef.current) {
+      return rotationAtFinalSettle(finalSettleRef.current);
+    }
+    if (continuousSpinRef.current) {
+      return rotationAtContinuousSpin(continuousSpinRef.current);
     }
     const motion = wheelMotionRef.current;
     if (!motion.durationMs || motion.durationMs <= 0) {
@@ -155,9 +189,54 @@ export default function WheelPage() {
     return motion.from + (motion.to - motion.from) * Math.min(1, Math.max(0, progress));
   };
 
+  const applyPendingRevealIfDue = () => {
+    const pending = pendingRevealRef.current;
+    if (!pending || Date.now() < pending.revealAtMs) return;
+
+    stopFinalSettleLoop();
+    stopContinuousSpinLoop();
+    finalSettleRef.current = null;
+    continuousSpinRef.current = null;
+    commitWheelRotation(pending.targetRotation);
+    wheelMotionRef.current = {
+      from: pending.targetRotation,
+      to: pending.targetRotation,
+      startedAt: Date.now(),
+      durationMs: 0,
+      easing: "linear",
+    };
+    pending.onReveal();
+    pendingRevealRef.current = null;
+  };
+
+  const syncWheelFromClock = () => {
+    const nextRotation = getCurrentWheelRotation();
+    commitWheelRotation(nextRotation);
+    applyPendingRevealIfDue();
+
+    const highlighted = highlightNumberRef.current;
+    if (
+      highlighted !== null &&
+      !isSpinningRef.current &&
+      !pendingRevealRef.current &&
+      !rotationModMatchesResult(nextRotation, highlighted)
+    ) {
+      const snapped = snapRotationToResult(nextRotation, highlighted);
+      commitWheelRotation(snapped);
+      wheelMotionRef.current = {
+        from: snapped,
+        to: snapped,
+        startedAt: Date.now(),
+        durationMs: 0,
+        easing: "linear",
+      };
+    }
+  };
+
   const startContinuousSpinLoop = () => {
     stopContinuousSpinLoop();
     stopFinalSettleLoop();
+    finalSettleRef.current = null;
     if (wheelMotionFrameRef.current !== null) {
       cancelAnimationFrame(wheelMotionFrameRef.current);
       wheelMotionFrameRef.current = null;
@@ -165,20 +244,19 @@ export default function WheelPage() {
     setWheelTransitionMs(0);
     setWheelTransitionTiming("linear");
 
-    const now = performance.now();
-    spinLoopStateRef.current = {
-      lastTime: now,
+    const startRotation = getCurrentWheelRotation();
+    continuousSpinRef.current = {
+      startMs: Date.now(),
+      startRotation,
+      degPerMs: FREE_SPIN_DEGREES_PER_SECOND / 1000,
     };
     angularVelocityRef.current = FREE_SPIN_DEGREES_PER_SECOND / 1000;
 
-    const tick = (ts: number) => {
-      const state = spinLoopStateRef.current;
-      const delta = Math.max(0, ts - state.lastTime);
-      state.lastTime = ts;
-      const nextRotation = rotationRef.current + angularVelocityRef.current * delta;
-
-      rotationRef.current = nextRotation;
-      setSpinRotation(nextRotation);
+    const tick = () => {
+      if (!continuousSpinRef.current) return;
+      commitWheelRotation(
+        rotationAtContinuousSpin(continuousSpinRef.current)
+      );
       spinLoopFrameRef.current = requestAnimationFrame(tick);
     };
 
@@ -188,6 +266,7 @@ export default function WheelPage() {
   const startFinalSettleLoop = (distanceDeg: number) => {
     stopContinuousSpinLoop();
     stopFinalSettleLoop();
+    continuousSpinRef.current = null;
     if (wheelMotionFrameRef.current !== null) {
       cancelAnimationFrame(wheelMotionFrameRef.current);
       wheelMotionFrameRef.current = null;
@@ -201,10 +280,9 @@ export default function WheelPage() {
     );
 
     if (safeDistance <= 0.0001) {
-      rotationRef.current = fromRotation;
-      setSpinRotation(fromRotation);
+      commitWheelRotation(fromRotation);
       angularVelocityRef.current = 0;
-      return 0;
+      return { durationMs: 0, targetRotation: fromRotation };
     }
 
     const minDistanceForSmoothStop = (startVelocity * MIN_FINAL_SETTLE_MS) / 2;
@@ -212,38 +290,43 @@ export default function WheelPage() {
       safeDistance += 360;
     }
 
-    const durationMs = Math.max(MIN_FINAL_SETTLE_MS, (2 * safeDistance) / startVelocity);
+    const durationMs = Math.max(
+      MIN_FINAL_SETTLE_MS,
+      (2 * safeDistance) / startVelocity
+    );
     const acceleration = -(startVelocity * startVelocity) / (2 * safeDistance);
-    const startedAt = performance.now();
+
+    finalSettleRef.current = {
+      startMs: Date.now(),
+      fromRotation,
+      distance: safeDistance,
+      durationMs,
+      startVelocity,
+      acceleration,
+    };
 
     setWheelTransitionMs(0);
     setWheelTransitionTiming("linear");
 
-    const tick = (ts: number) => {
-      const elapsed = Math.max(0, ts - startedAt);
-      const clampedElapsed = Math.min(durationMs, elapsed);
-      const traveled =
-        startVelocity * clampedElapsed +
-        0.5 * acceleration * clampedElapsed * clampedElapsed;
-      const nextRotation = fromRotation + Math.max(0, Math.min(safeDistance, traveled));
-
-      rotationRef.current = nextRotation;
-      setSpinRotation(nextRotation);
-
-      if (clampedElapsed >= durationMs) {
-        rotationRef.current = fromRotation + safeDistance;
-        setSpinRotation(fromRotation + safeDistance);
+    const tick = () => {
+      if (!finalSettleRef.current) return;
+      const state = finalSettleRef.current;
+      commitWheelRotation(rotationAtFinalSettle(state));
+      if (isFinalSettleComplete(state)) {
         angularVelocityRef.current = 0;
         finalSettleFrameRef.current = null;
         return;
       }
-
-      angularVelocityRef.current = Math.max(0, startVelocity + acceleration * clampedElapsed);
+      angularVelocityRef.current = Math.max(
+        0,
+        state.startVelocity +
+          state.acceleration * Math.max(0, Date.now() - state.startMs)
+      );
       finalSettleFrameRef.current = requestAnimationFrame(tick);
     };
 
     finalSettleFrameRef.current = requestAnimationFrame(tick);
-    return durationMs;
+    return { durationMs, targetRotation: fromRotation + safeDistance };
   };
 
   const startSpinWindow = (payload: any) => {
@@ -358,7 +441,8 @@ export default function WheelPage() {
       while (neededDelta <= 0) {
         neededDelta += 360;
       }
-      const finalSettleMs = Math.round(startFinalSettleLoop(neededDelta));
+      const { durationMs: finalSettleMs, targetRotation } =
+        startFinalSettleLoop(neededDelta);
       spinEndRef.current = Date.now() + finalSettleMs;
 
       if (resultTimerRef.current) {
@@ -368,6 +452,19 @@ export default function WheelPage() {
       const revealResult = () => {
         if (spinRevealDoneRef.current) return;
         spinRevealDoneRef.current = true;
+        stopFinalSettleLoop();
+        stopContinuousSpinLoop();
+        finalSettleRef.current = null;
+        continuousSpinRef.current = null;
+        pendingRevealRef.current = null;
+        commitWheelRotation(targetRotation);
+        wheelMotionRef.current = {
+          from: targetRotation,
+          to: targetRotation,
+          startedAt: Date.now(),
+          durationMs: 0,
+          easing: "linear",
+        };
         setIsSpinning(false);
         setHighlightNumber(msg.payload.result);
         setHistory((prev) =>
@@ -388,7 +485,15 @@ export default function WheelPage() {
         }
       };
 
-      resultTimerRef.current = setTimeout(revealResult, finalSettleMs);
+      pendingRevealRef.current = {
+        revealAtMs: Date.now() + finalSettleMs,
+        targetRotation,
+        onReveal: revealResult,
+      };
+
+      resultTimerRef.current = setTimeout(() => {
+        applyPendingRevealIfDue();
+      }, finalSettleMs);
     }
   };
 
@@ -454,6 +559,20 @@ export default function WheelPage() {
     });
   };
 
+  const handleAuthExpired = () => {
+    localStorage.removeItem("player-token");
+    localStorage.removeItem("player-email");
+    sessionStorage.setItem(
+      "auth-expired-message",
+      "Session expired. Please log in again."
+    );
+    socketRef.current?.disconnect();
+    setToken("");
+    if (typeof window !== "undefined") {
+      window.location.href = "/";
+    }
+  };
+
   const connectSocket = (authToken: string) => {
     if (socketRef.current) {
       socketRef.current.disconnect();
@@ -466,6 +585,9 @@ export default function WheelPage() {
       socket.emit("authenticate", authToken);
       socket.emit("join-rtc");
       loadResults(authToken);
+    });
+    socket.on("auth-error", () => {
+      handleAuthExpired();
     });
     socket.on("round-start", (payload) => {
       const msg = { event: "round-start", payload, ts: Date.now() };
@@ -501,6 +623,10 @@ export default function WheelPage() {
         Authorization: `Bearer ${authToken}`,
       },
     });
+    if (res.status === 401) {
+      handleAuthExpired();
+      throw new Error("Session expired. Please log in again.");
+    }
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       throw new Error(body.message || "Request failed");
@@ -559,6 +685,36 @@ export default function WheelPage() {
   }, [token]);
 
   useEffect(() => {
+    highlightNumberRef.current = highlightNumber;
+  }, [highlightNumber]);
+
+  useEffect(() => {
+    isSpinningRef.current = isSpinning;
+  }, [isSpinning]);
+
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.hidden) return;
+      syncWheelFromClock();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("focus", syncWheelFromClock);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("focus", syncWheelFromClock);
+    };
+  }, []);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("player-token");
+    if (saved) {
+      setToken(saved);
+    }
+    setAuthReady(true);
+  }, []);
+
+  useEffect(() => {
     const audio = new Audio("/audio.mp3");
     audio.preload = "auto";
     audio.load();
@@ -606,35 +762,56 @@ export default function WheelPage() {
     };
   }, [token]);
 
+  const countdownLabel = String(Math.max(0, Math.floor(countdown)));
   const centerResultNumber =
     !isSpinning && highlightNumber !== null ? highlightNumber : null;
-  const countdownLabel = String(Math.max(0, Math.floor(countdown)));
   const recentHistory = history.slice(-10).reverse();
   const historyCellClass = (n: number) =>
     NUMBER_TILE_CLASSES[n] || NUMBER_TILE_CLASSES[0];
 
+  const pageBackground = (
+    <div className="absolute inset-0 -z-10">
+      <div
+        className="absolute inset-0 scale-[1.14]"
+        style={{
+          backgroundImage:
+            "url('/casinoImg.jpg'), radial-gradient(circle at 15% 25%, rgba(255,180,120,0.65), transparent 42%), radial-gradient(circle at 70% 10%, rgba(160,120,255,0.65), transparent 46%), radial-gradient(circle at 85% 70%, rgba(60,210,255,0.38), transparent 48%), radial-gradient(circle at 10% 90%, rgba(255,110,110,0.48), transparent 46%), linear-gradient(130deg, #5b2572 0%, #7a2b8f 32%, #aa3b72 62%, #6a2450 100%)",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          filter: "blur(28px) brightness(1.24) saturate(1.18)",
+        }}
+      />
+      <div className="absolute inset-0 bg-black/15" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(255,255,255,0.12),transparent_58%)]" />
+    </div>
+  );
+
+  if (!authReady) {
+    return (
+      <div className="relative min-h-[100dvh] overflow-hidden text-white">
+        {pageBackground}
+        <div className="flex min-h-[100dvh] items-center justify-center px-6">
+          <p className="text-sm font-semibold text-white/60">Loading wheel...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!token) {
     return (
       <div className="relative min-h-[100dvh] overflow-hidden text-white">
-        <div className="absolute inset-0 -z-10">
-          <div
-            className="absolute inset-0 scale-[1.14]"
-            style={{
-              backgroundImage:
-                "url('/casinoImg.jpg'), radial-gradient(circle at 15% 25%, rgba(255,180,120,0.65), transparent 42%), radial-gradient(circle at 70% 10%, rgba(160,120,255,0.65), transparent 46%), radial-gradient(circle at 85% 70%, rgba(60,210,255,0.38), transparent 48%), radial-gradient(circle at 10% 90%, rgba(255,110,110,0.48), transparent 46%), linear-gradient(130deg, #5b2572 0%, #7a2b8f 32%, #aa3b72 62%, #6a2450 100%)",
-              backgroundSize: "cover",
-              backgroundPosition: "center",
-              filter: "blur(28px) brightness(1.24) saturate(1.18)",
-            }}
-          />
-          <div className="absolute inset-0 bg-black/15" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(255,255,255,0.12),transparent_58%)]" />
-        </div>
+        {pageBackground}
         <div className="flex min-h-[100dvh] items-center justify-center px-6">
           <div className="rounded-3xl border border-white/15 bg-black/35 px-6 py-5 text-center shadow-[0_24px_60px_rgba(0,0,0,0.45)] backdrop-blur-md">
             <p className="text-sm font-semibold text-white/85">
               Login on the home page to sync this wheel view.
             </p>
+            <a
+              href="/"
+              className="mt-4 inline-block rounded-xl bg-gradient-to-r from-amber-400 via-orange-500 to-red-500 px-4 py-2 text-sm font-semibold text-slate-900"
+            >
+              Go to Login
+            </a>
           </div>
         </div>
       </div>
@@ -643,20 +820,7 @@ export default function WheelPage() {
 
   return (
     <div className="relative min-h-[100dvh] overflow-hidden text-white">
-      <div className="absolute inset-0 -z-10">
-        <div
-          className="absolute inset-0 scale-[1.14]"
-          style={{
-            backgroundImage:
-              "url('/casinoImg.jpg'), radial-gradient(circle at 15% 25%, rgba(255,180,120,0.65), transparent 42%), radial-gradient(circle at 70% 10%, rgba(160,120,255,0.65), transparent 46%), radial-gradient(circle at 85% 70%, rgba(60,210,255,0.38), transparent 48%), radial-gradient(circle at 10% 90%, rgba(255,110,110,0.48), transparent 46%), linear-gradient(130deg, #5b2572 0%, #7a2b8f 32%, #aa3b72 62%, #6a2450 100%)",
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-            filter: "blur(28px) brightness(1.24) saturate(1.18)",
-          }}
-        />
-      <div className="absolute inset-0 bg-black/15" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(255,255,255,0.12),transparent_58%)]" />
-      </div>
+      {pageBackground}
 
       <div className="absolute right-4 top-4 z-50 sm:right-6 sm:top-6">
         <button
@@ -719,110 +883,115 @@ export default function WheelPage() {
         </button>
       </div>
 
-      <div className="relative z-10 flex min-h-[100dvh] items-center justify-center px-4 py-6">
-        <div className="flex w-full max-w-[640px] flex-col items-center gap-8">
-          <div className="relative">
-          <div className="pointer-events-none absolute left-1/2 top-0 z-40 -translate-x-1/2 -translate-y-1/3">
-            <div className="h-7 w-7 rotate-45 rounded-[10px] border border-white/30 bg-gradient-to-b from-sky-200 to-blue-600 shadow-[0_14px_24px_rgba(0,0,0,0.55)] sm:h-9 sm:w-9" />
-          </div>
-
-          <div className="relative mx-auto h-[min(88vw,420px)] w-[min(88vw,420px)] max-w-full overflow-visible md:h-[520px] md:w-[520px]">
-            <div
-              className="absolute inset-[12%] overflow-hidden rounded-full shadow-[0_26px_70px_rgba(0,0,0,0.55)] sm:inset-[11%] md:inset-[54px]"
-              style={{
-                transform: `rotate(${spinRotation}deg)`,
-                transition: `transform ${wheelTransitionMs}ms ${wheelTransitionTiming}`,
-                transformOrigin: "50% 50%",
-                background:
-                  "radial-gradient(circle at 50% 45%, #0b5e1c 0%, #0a6f1f 42%, #14ae34 76%, #0d8f28 100%)",
-              }}
-            >
+      <div className="relative z-10 flex min-h-[100dvh] flex-col items-center justify-center px-3 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-5 sm:py-6">
+        <div className="flex w-full max-w-[min(100%,720px)] flex-col items-center gap-4 sm:gap-6 md:gap-8">
+          <div className="flex w-full flex-col items-center">
+            <div className="relative w-[min(92vw,calc(100dvh-17rem),620px)] max-w-full aspect-square">
               <div
-                className="absolute inset-0 opacity-85"
+                className="absolute inset-[13%] overflow-hidden rounded-full shadow-[0_26px_70px_rgba(0,0,0,0.55)]"
                 style={{
+                  transform: `rotate(${spinRotation}deg)`,
+                  transition: `transform ${wheelTransitionMs}ms ${wheelTransitionTiming}`,
+                  transformOrigin: "50% 50%",
                   background:
-                    "repeating-conic-gradient(from -90deg, rgba(0,0,0,0.12) 0deg 1.5deg, transparent 1.5deg 36deg), repeating-conic-gradient(from -90deg, #1bb240 0deg 18deg, #13972f 18deg 36deg)",
+                    "radial-gradient(circle at 50% 45%, #0b5e1c 0%, #0a6f1f 42%, #14ae34 76%, #0d8f28 100%)",
                 }}
-              />
-              <div
-                className="absolute inset-0 pointer-events-none"
-                style={{
-                  background:
-                    "repeating-conic-gradient(from -90deg, transparent 0deg 35deg, rgba(0,0,0,0.3) 35deg 36deg)",
-                  mixBlendMode: "multiply",
-                }}
-              />
-              <div
-                className="absolute inset-[6%] rounded-full pointer-events-none"
-                style={{
-                  boxShadow:
-                    "inset 0 0 30px rgba(0,0,0,0.28), 0 0 14px rgba(0,0,0,0.25)",
-                }}
-              />
-              <div className="absolute inset-0 pointer-events-none">
-                {[...Array(10).keys()].map((n) => {
-                  const angleDeg = n * 36;
-                  const isHit = highlightNumber === n;
-                  return (
-                    <div
-                      key={n}
-                      className="absolute left-1/2 top-1/2"
-                      style={{
-                        transform: `translate(-50%, -50%) rotate(${angleDeg}deg) translateY(calc(-50% - ${NUMBER_RING_OFFSET})) rotate(${-(angleDeg + spinRotation)}deg)`,
-                      }}
-                    >
-                      <span
-                        className={`block text-2xl font-black drop-shadow-[0_6px_12px_rgba(0,0,0,0.6)] transition-transform sm:text-3xl md:text-4xl ${
-                          isHit ? "text-yellow-200 scale-110" : "text-white"
-                        }`}
-                        style={{
-                          textShadow: isHit
-                            ? "0 0 10px rgba(255,214,10,0.8), 0 0 22px rgba(255,214,10,0.7)"
-                            : "0 0 2px rgba(0,0,0,0.95), 0 0 8px rgba(0,0,0,0.7)",
-                        }}
-                      >
-                        {n}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <img
-              src="/OuterWheelRing.png"
-              alt="Wheel frame"
-              className="pointer-events-none absolute left-1/2 top-1/2 z-30 h-[120%] w-[120%] -translate-x-1/2 -translate-y-1/2 select-none object-contain drop-shadow-[0_26px_48px_rgba(0,0,0,0.6)] sm:h-[118%] sm:w-[118%] md:h-[116%] md:w-[116%]"
-            />
-
-            {centerResultNumber !== null && (
-              <div className="pointer-events-none absolute left-1/2 top-1/2 z-40 -translate-x-1/2 -translate-y-1/2">
+              >
                 <div
-                  className="grid h-20 w-20 place-items-center rounded-full border-[3px] border-amber-200/70 shadow-[0_16px_34px_rgba(0,0,0,0.45)] sm:h-24 sm:w-24 md:h-28 md:w-28"
+                  className="absolute inset-0 opacity-85"
                   style={{
                     background:
-                      "radial-gradient(circle at 35% 30%, rgba(255,255,255,0.32), rgba(255,230,150,0.18) 55%, rgba(0,0,0,0.35) 100%), linear-gradient(145deg, rgba(255,255,255,0.15), rgba(0,0,0,0.55))",
+                      "repeating-conic-gradient(from -90deg, rgba(0,0,0,0.12) 0deg 1.5deg, transparent 1.5deg 36deg), repeating-conic-gradient(from -90deg, #1bb240 0deg 18deg, #13972f 18deg 36deg)",
+                  }}
+                />
+                <div
+                  className="absolute inset-0 pointer-events-none"
+                  style={{
+                    background:
+                      "repeating-conic-gradient(from -90deg, transparent 0deg 35deg, rgba(0,0,0,0.3) 35deg 36deg)",
+                    mixBlendMode: "multiply",
+                  }}
+                />
+                <div
+                  className="absolute inset-[6%] rounded-full pointer-events-none"
+                  style={{
                     boxShadow:
-                      "inset 0 0 24px rgba(0,0,0,0.4), 0 14px 32px rgba(0,0,0,0.55)",
+                      "inset 0 0 30px rgba(0,0,0,0.28), 0 0 14px rgba(0,0,0,0.25)",
+                  }}
+                />
+                <div className="absolute inset-0 pointer-events-none">
+                  {[...Array(10).keys()].map((n) => {
+                    const angleDeg = n * 36;
+                    const isHit = highlightNumber === n;
+                    const angleRad = (angleDeg * Math.PI) / 180;
+                    const radiusPercent = WHEEL_NUMBER_RADIUS;
+                    const leftPercent = 50 + radiusPercent * Math.sin(angleRad);
+                    const topPercent = 50 - radiusPercent * Math.cos(angleRad);
+                    return (
+                      <div
+                        key={n}
+                        className="absolute"
+                        style={{
+                          left: `${leftPercent}%`,
+                          top: `${topPercent}%`,
+                          transform: `translate(-50%, -50%) rotate(${-spinRotation}deg)`,
+                        }}
+                      >
+                        <span
+                          className={`block text-[clamp(0.95rem,4.8vmin,2.75rem)] font-black leading-none drop-shadow-[0_6px_12px_rgba(0,0,0,0.6)] transition-transform ${
+                            isHit ? "text-yellow-200 scale-110" : "text-white"
+                          }`}
+                          style={{
+                            textShadow: isHit
+                              ? "0 0 10px rgba(255,214,10,0.8), 0 0 22px rgba(255,214,10,0.7)"
+                              : "0 0 2px rgba(0,0,0,0.95), 0 0 8px rgba(0,0,0,0.7)",
+                          }}
+                        >
+                          {n}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <img
+                src="/OuterWheelRing.png"
+                alt="Wheel frame"
+                className="pointer-events-none absolute inset-0 z-30 h-full w-full select-none object-contain drop-shadow-[0_26px_48px_rgba(0,0,0,0.6)]"
+              />
+
+              {centerResultNumber !== null && (
+                <div
+                  className="pointer-events-none absolute left-1/2 top-1/2 z-40 flex h-[24%] w-[24%] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-[3px] border-amber-200/90 shadow-[0_14px_30px_rgba(0,0,0,0.55)]"
+                  style={{
+                    background:
+                      "radial-gradient(circle at 35% 30%, rgba(255,255,255,0.32), rgba(255,230,150,0.18) 55%, rgba(0,0,0,0.45) 100%), linear-gradient(145deg, rgba(255,255,255,0.15), rgba(0,0,0,0.65))",
+                    boxShadow:
+                      "inset 0 0 20px rgba(0,0,0,0.4), 0 12px 28px rgba(0,0,0,0.65)",
                   }}
                 >
-                  <span className="text-4xl font-black text-yellow-100 drop-shadow-[0_8px_14px_rgba(0,0,0,0.7)] sm:text-5xl md:text-6xl">
+                  <span className="text-[clamp(1.5rem,7vmin,3.25rem)] font-black leading-none text-yellow-200 drop-shadow-[0_8px_14px_rgba(0,0,0,0.8)]">
                     {centerResultNumber}
                   </span>
                 </div>
-              </div>
-            )}
-          </div>
-
-          <div className="pointer-events-none absolute inset-x-0 -bottom-3 flex justify-center">
-            <div className="rounded-full border border-white/12 bg-black/30 px-4 py-1.5 text-sm font-black tracking-[0.24em] text-white/85 shadow-[0_12px_22px_rgba(0,0,0,0.35)] backdrop-blur-sm">
-              {countdownLabel}
+              )}
             </div>
-          </div>
+
+            <div className="mt-4 w-full max-w-[min(100%,420px)] sm:mt-5">
+              <div className="rounded-2xl border border-amber-200/40 bg-black/45 px-4 py-2.5 shadow-[0_12px_22px_rgba(0,0,0,0.35)] backdrop-blur-sm sm:px-6 sm:py-3">
+                <div className="text-[clamp(0.625rem,2.2vw,0.75rem)] font-bold uppercase tracking-[0.28em] text-amber-200/70 text-center">
+                  Time Left
+                </div>
+                <div className="text-[clamp(2rem,10vw,3.75rem)] font-black text-amber-300 drop-shadow-[0_0_12px_rgba(251,191,36,0.55)] text-center leading-none">
+                  {countdownLabel}
+                </div>
+              </div>
+            </div>
           </div>
 
           <div
-            className="w-full max-w-[calc(100vw-2rem)] rounded-2xl border-2 border-amber-200/45 px-2.5 py-2 sm:px-3"
+            className="w-full rounded-2xl border-2 border-amber-200/45 px-2 py-2 sm:px-3 sm:py-2.5"
             style={{
               background:
                 "linear-gradient(180deg, rgba(0,0,0,0.35), rgba(0,0,0,0.55))",
@@ -830,12 +999,12 @@ export default function WheelPage() {
                 "inset 0 1px 0 rgba(255,255,255,0.12), 0 14px 24px rgba(0,0,0,0.35)",
             }}
           >
-            <div className="overflow-x-auto overflow-y-hidden [touch-action:pan-x]">
-              <div className="flex min-w-full items-center justify-between gap-1.5">
+            <div className="overflow-x-auto overflow-y-hidden [touch-action:pan-x] no-scrollbar">
+              <div className="flex min-w-full items-center justify-center gap-[clamp(0.25rem,1.2vw,0.625rem)]">
                 {recentHistory.map((h, idx) => (
                   <div
                     key={`${h.roundId}-${h.result}-${idx}`}
-                    className={`flex h-8 min-w-8 flex-none items-center justify-center rounded-md border border-black/30 text-[1.65rem] font-black leading-[0.8] tracking-[-0.08em] shadow-[0_10px_14px_rgba(0,0,0,0.45)] sm:h-10 sm:min-w-10 sm:rounded-lg sm:text-[2.1rem] ${historyCellClass(
+                    className={`flex aspect-square h-[clamp(2rem,8vw,2.75rem)] min-w-[clamp(2rem,8vw,2.75rem)] flex-none items-center justify-center rounded-md border border-black/30 text-[clamp(1.15rem,4.8vw,2rem)] font-black leading-[0.8] tracking-[-0.08em] shadow-[0_10px_14px_rgba(0,0,0,0.45)] sm:rounded-lg ${historyCellClass(
                       h.result
                     )}`}
                   >

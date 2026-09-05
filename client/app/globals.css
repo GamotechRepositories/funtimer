@@ -50,4 +50,3 @@ body {
 .wheel-spin {
   animation: wheel-spin 4.5s cubic-bezier(0.3, 0.7, 0.4, 1) 1;
 }
-

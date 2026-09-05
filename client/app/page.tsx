@@ -7,7 +7,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import SimplePeer from "simple-peer";
 import io, { Socket } from "socket.io-client";
-
+import {
+  type ContinuousSpinState,
+  type FinalSettleState,
+  isFinalSettleComplete,
+  rotationAtContinuousSpin,
+  rotationAtFinalSettle,
+  rotationModMatchesResult,
+  snapRotationToResult,
+} from "../lib/wheelRotation";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 const SOCKET_URL = API_BASE.replace(/\/api$/, "");
@@ -16,7 +24,7 @@ const DEFAULT_SPIN_MS = 5000;
 const FINAL_SETTLE_FALLBACK_SPEED = 520;
 const MIN_FINAL_SETTLE_MS = 850;
 const FREE_SPIN_DEGREES_PER_SECOND = 540;
-const NUMBER_RING_OFFSET = "clamp(58px, 14vw, 106px)";
+const WHEEL_NUMBER_RADIUS = 35;
 const CHIP_IMAGES = [
   "/redship.png",
   "/bluechip.png",
@@ -192,11 +200,17 @@ export default function Game() {
   const wheelMotionFrameRef = useRef<number | null>(null);
   const spinLoopFrameRef = useRef<number | null>(null);
   const finalSettleFrameRef = useRef<number | null>(null);
-  const spinLoopStateRef = useRef({
-    lastTime: 0,
-  });
   const activeSpinRoundIdRef = useRef<string | null>(null);
   const roundStartTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const continuousSpinRef = useRef<ContinuousSpinState | null>(null);
+  const finalSettleRef = useRef<FinalSettleState | null>(null);
+  const pendingRevealRef = useRef<{
+    revealAtMs: number;
+    targetRotation: number;
+    onReveal: () => void;
+  } | null>(null);
+  const highlightNumberRef = useRef<number | null>(null);
+  const isSpinningRef = useRef(false);
   const betActionIdRef = useRef(0);
   const betQueueRef = useRef(Promise.resolve());
 
@@ -205,6 +219,16 @@ export default function Game() {
     () => bets.reduce((acc, b) => acc + b.amount, 0),
     [bets]
   );
+
+  const handleAuthExpired = (message = "Session expired. Please log in again.") => {
+    localStorage.removeItem("player-token");
+    localStorage.removeItem("player-email");
+    sessionStorage.setItem("auth-expired-message", message);
+    socketRef.current?.disconnect();
+    setToken("");
+    setUser(null);
+    setStatus(message);
+  };
 
   const apiFetch = useMemo(
     () =>
@@ -218,6 +242,10 @@ export default function Game() {
             ...(options.headers || {}),
           },
         });
+        if (res.status === 401) {
+          handleAuthExpired();
+          throw new Error("Session expired. Please log in again.");
+        }
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));
           throw new Error(body.message || "Request failed");
@@ -275,9 +303,17 @@ export default function Game() {
 
   const getMotionTiming = (_easing: WheelMotionEase) => "linear";
 
+  const commitWheelRotation = (nextRotation: number) => {
+    rotationRef.current = nextRotation;
+    setSpinRotation(nextRotation);
+  };
+
   const getCurrentWheelRotation = () => {
-    if (spinLoopFrameRef.current !== null) {
-      return rotationRef.current;
+    if (finalSettleRef.current) {
+      return rotationAtFinalSettle(finalSettleRef.current);
+    }
+    if (continuousSpinRef.current) {
+      return rotationAtContinuousSpin(continuousSpinRef.current);
     }
     const motion = wheelMotionRef.current;
     if (!motion.durationMs || motion.durationMs <= 0) {
@@ -296,6 +332,50 @@ export default function Game() {
       motion.from +
       (motion.to - motion.from) * getMotionProgress(motion.easing, progress)
     );
+  };
+
+  const applyPendingRevealIfDue = () => {
+    const pending = pendingRevealRef.current;
+    if (!pending || Date.now() < pending.revealAtMs) return;
+
+    stopFinalSettleLoop();
+    stopContinuousSpinLoop();
+    finalSettleRef.current = null;
+    continuousSpinRef.current = null;
+    commitWheelRotation(pending.targetRotation);
+    wheelMotionRef.current = {
+      from: pending.targetRotation,
+      to: pending.targetRotation,
+      startedAt: Date.now(),
+      durationMs: 0,
+      easing: "linear",
+    };
+    pending.onReveal();
+    pendingRevealRef.current = null;
+  };
+
+  const syncWheelFromClock = () => {
+    const nextRotation = getCurrentWheelRotation();
+    commitWheelRotation(nextRotation);
+    applyPendingRevealIfDue();
+
+    const highlighted = highlightNumberRef.current;
+    if (
+      highlighted !== null &&
+      !isSpinningRef.current &&
+      !pendingRevealRef.current &&
+      !rotationModMatchesResult(nextRotation, highlighted)
+    ) {
+      const snapped = snapRotationToResult(nextRotation, highlighted);
+      commitWheelRotation(snapped);
+      wheelMotionRef.current = {
+        from: snapped,
+        to: snapped,
+        startedAt: Date.now(),
+        durationMs: 0,
+        easing: "linear",
+      };
+    }
   };
 
   const runWheelMotion = (
@@ -356,6 +436,12 @@ export default function Game() {
   };
 
   const stopContinuousSpinLoop = () => {
+    if (continuousSpinRef.current) {
+      commitWheelRotation(
+        rotationAtContinuousSpin(continuousSpinRef.current)
+      );
+      continuousSpinRef.current = null;
+    }
     if (spinLoopFrameRef.current !== null) {
       cancelAnimationFrame(spinLoopFrameRef.current);
       spinLoopFrameRef.current = null;
@@ -363,6 +449,13 @@ export default function Game() {
   };
 
   const stopFinalSettleLoop = () => {
+    if (finalSettleRef.current) {
+      const settled = rotationAtFinalSettle(finalSettleRef.current);
+      commitWheelRotation(settled);
+      if (isFinalSettleComplete(finalSettleRef.current)) {
+        finalSettleRef.current = null;
+      }
+    }
     if (finalSettleFrameRef.current !== null) {
       cancelAnimationFrame(finalSettleFrameRef.current);
       finalSettleFrameRef.current = null;
@@ -372,6 +465,7 @@ export default function Game() {
   const startContinuousSpinLoop = () => {
     stopContinuousSpinLoop();
     stopFinalSettleLoop();
+    finalSettleRef.current = null;
     if (wheelMotionFrameRef.current !== null) {
       cancelAnimationFrame(wheelMotionFrameRef.current);
       wheelMotionFrameRef.current = null;
@@ -379,22 +473,19 @@ export default function Game() {
     setWheelTransitionMs(0);
     setWheelTransitionTiming("linear");
 
-    const now = performance.now();
-    spinLoopStateRef.current = {
-      lastTime: now,
+    const startRotation = getCurrentWheelRotation();
+    continuousSpinRef.current = {
+      startMs: Date.now(),
+      startRotation,
+      degPerMs: FREE_SPIN_DEGREES_PER_SECOND / 1000,
     };
     angularVelocityRef.current = FREE_SPIN_DEGREES_PER_SECOND / 1000;
 
-    const tick = (ts: number) => {
-      const state = spinLoopStateRef.current;
-      const delta = Math.max(0, ts - state.lastTime);
-      state.lastTime = ts;
-      const speed = angularVelocityRef.current;
-      const nextRotation = rotationRef.current + speed * delta;
-
-      rotationRef.current = nextRotation;
-      setSpinRotation(nextRotation);
-
+    const tick = () => {
+      if (!continuousSpinRef.current) return;
+      commitWheelRotation(
+        rotationAtContinuousSpin(continuousSpinRef.current)
+      );
       spinLoopFrameRef.current = requestAnimationFrame(tick);
     };
 
@@ -404,6 +495,7 @@ export default function Game() {
   const startFinalSettleLoop = (distanceDeg: number) => {
     stopContinuousSpinLoop();
     stopFinalSettleLoop();
+    continuousSpinRef.current = null;
     if (wheelMotionFrameRef.current !== null) {
       cancelAnimationFrame(wheelMotionFrameRef.current);
       wheelMotionFrameRef.current = null;
@@ -417,10 +509,9 @@ export default function Game() {
     );
 
     if (safeDistance <= 0.0001) {
-      rotationRef.current = fromRotation;
-      setSpinRotation(fromRotation);
+      commitWheelRotation(fromRotation);
       angularVelocityRef.current = 0;
-      return 0;
+      return { durationMs: 0, targetRotation: fromRotation };
     }
 
     const minDistanceForSmoothStop =
@@ -431,39 +522,38 @@ export default function Game() {
 
     const durationMs = Math.max(MIN_FINAL_SETTLE_MS, (2 * safeDistance) / startVelocity);
     const acceleration = -(startVelocity * startVelocity) / (2 * safeDistance);
-    const startedAt = performance.now();
+
+    finalSettleRef.current = {
+      startMs: Date.now(),
+      fromRotation,
+      distance: safeDistance,
+      durationMs,
+      startVelocity,
+      acceleration,
+    };
 
     setWheelTransitionMs(0);
     setWheelTransitionTiming("linear");
 
-    const tick = (ts: number) => {
-      const elapsed = Math.max(0, ts - startedAt);
-      const clampedElapsed = Math.min(durationMs, elapsed);
-      const traveled =
-        startVelocity * clampedElapsed +
-        0.5 * acceleration * clampedElapsed * clampedElapsed;
-      const nextRotation = fromRotation + Math.max(0, Math.min(safeDistance, traveled));
-
-      rotationRef.current = nextRotation;
-      setSpinRotation(nextRotation);
-
-      if (clampedElapsed >= durationMs) {
-        rotationRef.current = fromRotation + safeDistance;
-        setSpinRotation(fromRotation + safeDistance);
+    const tick = () => {
+      if (!finalSettleRef.current) return;
+      const state = finalSettleRef.current;
+      commitWheelRotation(rotationAtFinalSettle(state));
+      if (isFinalSettleComplete(state)) {
         angularVelocityRef.current = 0;
         finalSettleFrameRef.current = null;
         return;
       }
-
       angularVelocityRef.current = Math.max(
         0,
-        startVelocity + acceleration * clampedElapsed
+        state.startVelocity +
+          state.acceleration * Math.max(0, Date.now() - state.startMs)
       );
       finalSettleFrameRef.current = requestAnimationFrame(tick);
     };
 
     finalSettleFrameRef.current = requestAnimationFrame(tick);
-    return durationMs;
+    return { durationMs, targetRotation: fromRotation + safeDistance };
   };
 
   const startSpinWindow = (payload: any) => {
@@ -697,7 +787,8 @@ export default function Game() {
       while (neededDelta <= 0) {
         neededDelta += 360;
       }
-      const finalSettleMs = Math.round(startFinalSettleLoop(neededDelta));
+      const { durationMs: finalSettleMs, targetRotation } =
+        startFinalSettleLoop(neededDelta);
       spinEndRef.current = Date.now() + finalSettleMs;
 
       if (resultTimerRef.current) {
@@ -707,6 +798,19 @@ export default function Game() {
       const revealResult = () => {
         if (spinRevealDoneRef.current) return;
         spinRevealDoneRef.current = true;
+        stopFinalSettleLoop();
+        stopContinuousSpinLoop();
+        finalSettleRef.current = null;
+        continuousSpinRef.current = null;
+        pendingRevealRef.current = null;
+        commitWheelRotation(targetRotation);
+        wheelMotionRef.current = {
+          from: targetRotation,
+          to: targetRotation,
+          startedAt: Date.now(),
+          durationMs: 0,
+          easing: "linear",
+        };
         setIsSpinning(false);
         setLastResult(msg.payload.result);
         setHighlightNumber(msg.payload.result);
@@ -723,7 +827,15 @@ export default function Game() {
         spinEndRef.current = null;
       };
 
-      resultTimerRef.current = setTimeout(revealResult, finalSettleMs);
+      pendingRevealRef.current = {
+        revealAtMs: Date.now() + finalSettleMs,
+        targetRotation,
+        onReveal: revealResult,
+      };
+
+      resultTimerRef.current = setTimeout(() => {
+        applyPendingRevealIfDue();
+      }, finalSettleMs);
     }
   };
 
@@ -790,12 +902,66 @@ export default function Game() {
   };
 
   useEffect(() => {
+    highlightNumberRef.current = highlightNumber;
+  }, [highlightNumber]);
+
+  useEffect(() => {
+    isSpinningRef.current = isSpinning;
+  }, [isSpinning]);
+
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.hidden) return;
+      syncWheelFromClock();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("focus", syncWheelFromClock);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("focus", syncWheelFromClock);
+    };
+  }, []);
+
+  useEffect(() => {
     const saved = localStorage.getItem("player-token");
     const savedEmail = localStorage.getItem("player-email");
-    if (saved) {
-      setToken(saved);
-      setLoginForm((f) => ({ ...f, email: savedEmail || f.email }));
+    const expiredMsg = sessionStorage.getItem("auth-expired-message");
+    if (expiredMsg) {
+      sessionStorage.removeItem("auth-expired-message");
+      setStatus(expiredMsg);
     }
+    if (!saved) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/auth/me`, {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${saved}`,
+          },
+        });
+        if (cancelled) return;
+        if (res.status === 401) {
+          localStorage.removeItem("player-token");
+          localStorage.removeItem("player-email");
+          setStatus("Session expired. Please log in again.");
+          return;
+        }
+        if (!res.ok) return;
+        const data = await res.json();
+        setToken(saved);
+        setUser(data);
+        setLoginForm((f) => ({ ...f, email: savedEmail || f.email }));
+      } catch {
+        // Keep login screen if the session check fails
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -842,6 +1008,9 @@ export default function Game() {
     socket.on("connect", () => {
       socket.emit("authenticate", token);
       socket.emit("join-rtc");
+    });
+    socket.on("auth-error", () => {
+      handleAuthExpired("Session expired. Please log in again.");
     });
     socket.on("round-start", (payload) => {
       const msg = { event: "round-start", payload, ts: Date.now() };
@@ -971,6 +1140,8 @@ export default function Game() {
       setUser(data.user);
       localStorage.setItem("player-token", data.token);
       localStorage.setItem("player-email", loginForm.email);
+      sessionStorage.removeItem("auth-expired-message");
+      setStatus("");
     } catch (err: any) {
       setStatus(err.message);
     }
@@ -1760,11 +1931,11 @@ export default function Game() {
                 <div className="h-6 w-6 rotate-45 rounded-[6px] border-2 border-amber-300 bg-gradient-to-br from-fuchsia-400 via-purple-600 to-indigo-800 shadow-[0_0_12px_rgba(217,70,239,0.8)]" />
               </div>
 
-              {/* WHEEL DISK CONTAINER: Perfectly proportional to viewport */}
-              <div className="relative mx-auto h-[min(50vh,350px)] w-[min(50vh,350px)] sm:h-[min(55vh,400px)] sm:w-[min(55vh,400px)] lg:h-[min(60vh,480px)] lg:w-[min(60vh,480px)] xl:h-[min(70vh,580px)] xl:w-[min(70vh,580px)] overflow-visible">
-                {/* Rotating Segmented Disk */}
+              {/* WHEEL DISK CONTAINER */}
+              <div className="relative mx-auto aspect-square w-[min(92vw,calc(100dvh-20rem),520px)] max-w-full overflow-visible lg:w-[min(56vh,520px)] xl:w-[min(62vh,560px)]">
+                {/* Rotating Segmented Disk — inset matches OuterWheelRing inner hole */}
                 <div
-                  className="absolute inset-[12%] overflow-hidden rounded-full shadow-[0_20px_50px_rgba(0,0,0,0.65)] sm:inset-[11%] md:inset-[50px]"
+                  className="absolute inset-[13%] overflow-hidden rounded-full shadow-[0_20px_50px_rgba(0,0,0,0.65)]"
                   style={{
                     transform: `rotate(${spinRotation}deg)`,
                     transition: `transform ${wheelTransitionMs}ms ${wheelTransitionTiming}`,
@@ -1799,62 +1970,57 @@ export default function Game() {
                     {[...Array(10).keys()].map((n) => {
                       const angleDeg = n * 36;
                       const isHit = highlightNumber === n;
+                      const angleRad = (angleDeg * Math.PI) / 180;
+                      const radiusPercent = WHEEL_NUMBER_RADIUS;
+                      const leftPercent = 50 + radiusPercent * Math.sin(angleRad);
+                      const topPercent = 50 - radiusPercent * Math.cos(angleRad);
                       return (
                         <div
                           key={n}
-                          className="absolute inset-0"
+                          className="absolute"
                           style={{
-                            transform: `rotate(${angleDeg}deg)`,
+                            left: `${leftPercent}%`,
+                            top: `${topPercent}%`,
+                            transform: `translate(-50%, -50%) rotate(${-spinRotation}deg)`,
                           }}
                         >
-                          <div 
-                            className="absolute left-1/2 top-[6%] sm:top-[8%] -translate-x-1/2 flex items-center justify-center"
+                          <span
+                            className={`block text-[clamp(0.95rem,4.8vmin,2.15rem)] font-black leading-none drop-shadow-[0_6px_12px_rgba(0,0,0,0.6)] transition-transform ${
+                              isHit ? "text-yellow-200 scale-110" : "text-white"
+                            }`}
                             style={{
-                              transform: `rotate(${-(angleDeg + spinRotation)}deg)`
+                              textShadow: isHit
+                                ? "0 0 10px rgba(255,214,10,0.8), 0 0 22px rgba(255,214,10,0.7)"
+                                : "0 0 2px rgba(0,0,0,0.95), 0 0 8px rgba(0,0,0,0.7)",
                             }}
                           >
-                            <span
-                              className={`block text-2xl font-black drop-shadow-[0_6px_12px_rgba(0,0,0,0.6)] transition-transform sm:text-3xl xl:text-4xl ${
-                                isHit ? "text-yellow-200 scale-110" : "text-white"
-                              }`}
-                              style={{
-                                textShadow: isHit
-                                  ? "0 0 10px rgba(255,214,10,0.8), 0 0 22px rgba(255,214,10,0.7)"
-                                  : "0 0 2px rgba(0,0,0,0.95), 0 0 8px rgba(0,0,0,0.7)",
-                              }}
-                            >
-                              {n}
-                            </span>
-                          </div>
+                            {n}
+                          </span>
                         </div>
                       );
                     })}
                   </div>
                 </div>
 
-                {/* Outer Wheel Ring Frame */}
                 <img
                   src="/OuterWheelRing.png"
                   alt="Wheel frame"
-                  className="pointer-events-none absolute left-1/2 top-1/2 z-30 h-[120%] w-[120%] -translate-x-1/2 -translate-y-1/2 select-none object-contain drop-shadow-[0_20px_40px_rgba(0,0,0,0.65)] sm:h-[118%] sm:w-[118%] md:h-[116%] md:w-[116%]"
+                  className="pointer-events-none absolute inset-0 z-30 h-full w-full select-none object-contain drop-shadow-[0_20px_40px_rgba(0,0,0,0.65)]"
                 />
 
-                {/* Center Result Number */}
                 {centerResultNumber !== null && (
-                  <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-40 pointer-events-none">
-                    <div
-                      className="grid h-16 w-16 sm:h-18 sm:w-18 xl:h-22 xl:w-22 place-items-center rounded-full border-[3px] border-amber-200/90 shadow-[0_14px_30px_rgba(0,0,0,0.55)]"
-                      style={{
-                        background:
-                          "radial-gradient(circle at 35% 30%, rgba(255,255,255,0.32), rgba(255,230,150,0.18) 55%, rgba(0,0,0,0.45) 100%), linear-gradient(145deg, rgba(255,255,255,0.15), rgba(0,0,0,0.65))",
-                        boxShadow:
-                          "inset 0 0 20px rgba(0,0,0,0.4), 0 12px 28px rgba(0,0,0,0.65)",
-                      }}
-                    >
-                      <span className="text-3xl sm:text-4xl xl:text-5xl font-black text-yellow-200 drop-shadow-[0_8px_14px_rgba(0,0,0,0.8)]">
-                        {centerResultNumber}
-                      </span>
-                    </div>
+                  <div
+                    className="pointer-events-none absolute left-1/2 top-1/2 z-40 flex h-[24%] w-[24%] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-[3px] border-amber-200/90 shadow-[0_14px_30px_rgba(0,0,0,0.55)]"
+                    style={{
+                      background:
+                        "radial-gradient(circle at 35% 30%, rgba(255,255,255,0.32), rgba(255,230,150,0.18) 55%, rgba(0,0,0,0.45) 100%), linear-gradient(145deg, rgba(255,255,255,0.15), rgba(0,0,0,0.65))",
+                      boxShadow:
+                        "inset 0 0 20px rgba(0,0,0,0.4), 0 12px 28px rgba(0,0,0,0.65)",
+                    }}
+                  >
+                    <span className="text-[clamp(1.5rem,7vmin,3rem)] font-black leading-none text-yellow-200 drop-shadow-[0_8px_14px_rgba(0,0,0,0.8)]">
+                      {centerResultNumber}
+                    </span>
                   </div>
                 )}
               </div>
